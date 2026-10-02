@@ -6,7 +6,7 @@ export function formatNumber(value: number): string {
 }
 
 export function formatLb(value: number): string {
-  return `${formatNumber(value)} lb`;
+  return `${formatNumber(value)}\u00a0lb`;
 }
 
 export function formatCoins(copper: number): string {

@@ -34,8 +34,8 @@ describe("format", () => {
   });
 
   it("prints whole pounds without a decimal", () => {
-    expect(formatLb(10)).toBe("10 lb");
-    expect(formatLb(2.5)).toBe("2.5 lb");
+    expect(formatLb(10)).toBe("10\u00a0lb");
+    expect(formatLb(2.5)).toBe("2.5\u00a0lb");
   });
 });
 
