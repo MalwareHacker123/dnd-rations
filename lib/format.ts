@@ -1,0 +1,29 @@
+export function formatNumber(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 1,
+  }).format(rounded);
+}
+
+export function formatLb(value: number): string {
+  return `${formatNumber(value)} lb`;
+}
+
+export function formatCoins(copper: number): string {
+  const sign = copper < 0 ? "−" : "";
+  let remaining = Math.abs(Math.round(copper));
+  const gold = Math.floor(remaining / 100);
+  remaining %= 100;
+  const silver = Math.floor(remaining / 10);
+  const coins = remaining % 10;
+  const parts: string[] = [];
+  if (gold) parts.push(`${gold} gp`);
+  if (silver) parts.push(`${silver} sp`);
+  if (coins || parts.length === 0) parts.push(`${coins} cp`);
+  return sign + parts.join(", ");
+}
+
+export function plural(count: number, singular: string, pluralForm?: string): string {
+  const word = count === 1 ? singular : (pluralForm ?? `${singular}s`);
+  return `${formatNumber(count)} ${word}`;
+}
