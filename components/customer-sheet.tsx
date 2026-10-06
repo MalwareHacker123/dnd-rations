@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useSyncExternalStore } from "react";
-import { Dices } from "lucide-react";
+import { Dices, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -15,6 +15,7 @@ import {
   REGIONS,
   SERVICES,
   calculateHouse,
+  cuisineMultiplier,
   roundTo,
   type CuisineFit,
   type FrictionId,
@@ -55,32 +56,37 @@ function Section({
   );
 }
 
-function Choice({
-  pressed,
-  title,
+function CheckRow({
+  id,
+  checked,
+  label,
   detail,
-  onClick,
+  disabled = false,
+  onCheckedChange,
 }: {
-  pressed: boolean;
-  title: string;
+  id: string;
+  checked: boolean;
+  label: string;
   detail: string;
-  onClick: () => void;
+  disabled?: boolean;
+  onCheckedChange: (checked: boolean) => void;
 }) {
   return (
-    <Button
-      type="button"
-      variant={pressed ? "default" : "outline"}
-      aria-pressed={pressed}
-      className="h-auto items-start justify-start px-3 py-2 text-left whitespace-normal"
-      onClick={onClick}
-    >
-      <span className="flex flex-col items-start gap-0.5">
-        <span>{title}</span>
-        <span className={cn("text-xs font-normal", pressed ? "text-primary-foreground/80" : "text-muted-foreground")}>
-          {detail}
-        </span>
-      </span>
-    </Button>
+    <div data-testid={`check-${id}`} className="flex items-start gap-3 rounded-lg bg-muted/50 px-3 py-3">
+      <Checkbox
+        id={id}
+        className="mt-0.5"
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={onCheckedChange}
+      />
+      <div className="min-w-0">
+        <Label htmlFor={id} className="cursor-pointer">
+          {label}
+        </Label>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p>
+      </div>
+    </div>
   );
 }
 
@@ -146,6 +152,20 @@ function HousePanel({ house, math }: { house: House; math: HouseMath }) {
             <Stat label="Turned away" value={formatCount(math.turnedAway)} testId="turned-away" />
           </dl>
 
+          <ul data-testid="factors" className="space-y-2 border-t pt-4 text-sm">
+            {math.factors.map((factor) => (
+              <li key={factor.id} className="flex items-start justify-between gap-3">
+                <span className={cn("min-w-0", factor.on ? "text-foreground" : "text-muted-foreground")}>
+                  <span className="mr-2 text-xs font-medium tracking-wide uppercase">
+                    {factor.on ? "On" : "Off"}
+                  </span>
+                  {factor.label}
+                </span>
+                <span className="max-w-[11rem] text-right text-xs leading-5 text-muted-foreground">{factor.effect}</span>
+              </li>
+            ))}
+          </ul>
+
           {(math.priceNote || math.repNote) && (
             <div className="space-y-2 text-sm">
               {math.priceNote && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-destructive">{math.priceNote}</p>}
@@ -153,7 +173,9 @@ function HousePanel({ house, math }: { house: House; math: HouseMath }) {
             </div>
           )}
 
-          <div className="space-y-2 border-t pt-4 text-xs leading-5 text-muted-foreground">
+          <details className="border-t pt-4 text-xs leading-5 text-muted-foreground">
+            <summary className="cursor-pointer font-medium text-foreground">Baseline equation</summary>
+            <div className="mt-3 space-y-2">
             <p>
               Foot traffic {formatCount(math.bRegion)} × wealth {formatFixed(math.wealth, 2)} ({region.wealthLabel}) gives{" "}
               {formatCount(math.bEff)} effective passers-by.
@@ -176,7 +198,8 @@ function HousePanel({ house, math }: { house: House; math: HouseMath }) {
               then × {formatFixed(math.fService, 2)} service × {formatFixed(math.fFriction, 2)} friction, which is{" "}
               {formatPercent(math.cr)}.
             </p>
-          </div>
+            </div>
+          </details>
         </div>
       </div>
     </aside>
@@ -266,22 +289,38 @@ export function CustomerBoard() {
 
         <Section
           title="Food appeal"
-          blurb="Cuisine, price, the cook’s name, and the week’s craving. The appeal is squared, so a strong house pulls far ahead of a dull one."
+          blurb="The baseline squares this index. Each box below is one term in it. Tick the one that matches this kitchen."
         >
-          <div className="grid gap-2 sm:grid-cols-2">
-            {CUISINES.map((cuisine) => (
-              <Choice
-                key={cuisine.id}
-                pressed={house.cuisine === cuisine.id}
-                title={cuisine.label}
-                detail={
-                  cuisine.id === "exotic" && house.region === "mi"
-                    ? "Mi Region scores exotic food at 0.85."
-                    : cuisine.detail
-                }
-                onClick={() => patch({ cuisine: cuisine.id as CuisineFit })}
-              />
-            ))}
+          <div className="space-y-2">
+            <Label htmlFor="cuisine-name">What is cooking</Label>
+            <Input
+              id="cuisine-name"
+              value={house.cuisineName}
+              maxLength={60}
+              placeholder="Seafood"
+              onChange={(event) => patch({ cuisineName: event.target.value })}
+            />
+          </div>
+          <div className="grid gap-2">
+            {CUISINES.map((cuisine) => {
+              const score = cuisineMultiplier(house.region, cuisine.id);
+              return (
+                <CheckRow
+                  key={cuisine.id}
+                  id={`cuisine-${cuisine.id}`}
+                  checked={house.cuisine === cuisine.id}
+                  label={`${cuisine.label} · ${formatFixed(score, 2)}`}
+                  detail={
+                    cuisine.id === "exotic" && house.region === "mi"
+                      ? "Mi Region scores exotic food at 0.85. One cuisine box stays checked."
+                      : `${cuisine.detail} One cuisine box stays checked.`
+                  }
+                  onCheckedChange={(on) => {
+                    if (on) patch({ cuisine: cuisine.id as CuisineFit });
+                  }}
+                />
+              );
+            })}
           </div>
           <TierPicker label="Menu tier" value={house.menuTier} onChange={(menuTier) => patch({ menuTier })} />
           <TierPicker
@@ -312,19 +351,33 @@ export function CustomerBoard() {
             </p>
           </div>
           {house.region === "pomodoro" && (
-            <div className="space-y-2 rounded-lg bg-muted/50 px-3 py-3">
-              <Label htmlFor="slump">Slump days left</Label>
-              <div className="flex flex-wrap items-center gap-2">
-                <Input
-                  id="slump"
-                  inputMode="numeric"
-                  className="w-24 tabular-nums"
-                  value={house.slumpDays}
-                  onChange={(event) => {
-                    const slumpDays = parseBound(event.target.value, 0, 6);
-                    if (slumpDays !== null) patch({ slumpDays });
-                  }}
-                />
+            <div className="space-y-3">
+              <CheckRow
+                id="slump-on"
+                checked={house.checkTotal < 10 || house.slumpDays > 0}
+                disabled={house.checkTotal < 10}
+                label="Pomodoro slump · reputation 0.20"
+                detail={
+                  house.checkTotal < 10
+                    ? "This check is under 10, so the slump box stays on. Roll 1d6 for the days."
+                    : "Check this when a bad cook's name is still stuck on the house."
+                }
+                onCheckedChange={(on) => patch({ slumpDays: on ? Math.max(1, house.slumpDays) : 0 })}
+              />
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="space-y-2">
+                  <Label htmlFor="slump">Slump days left</Label>
+                  <Input
+                    id="slump"
+                    inputMode="numeric"
+                    className="w-24 tabular-nums"
+                    value={house.slumpDays}
+                    onChange={(event) => {
+                      const slumpDays = parseBound(event.target.value, 0, 6);
+                      if (slumpDays !== null) patch({ slumpDays });
+                    }}
+                  />
+                </div>
                 <Button
                   type="button"
                   variant="outline"
@@ -334,83 +387,172 @@ export function CustomerBoard() {
                   Roll 1d6
                 </Button>
               </div>
-              <p className="text-xs leading-5 text-muted-foreground">
-                In Pomodoro, a check under 10 drops reputation to 0.20 for 1d6 days.
-              </p>
             </div>
           )}
           <div className="space-y-3">
-            <Flag
+            <CheckRow
               id="ingredient"
-              label="Favored weekly ingredient"
-              detail="The kitchen is using the ingredient people are craving."
+              label={`${house.ingredientName.trim() || "Favored ingredient"} · +0.20`}
+              detail="Checked when the kitchen is using the ingredient people want this week."
               checked={house.favoredIngredient}
               onCheckedChange={(favoredIngredient) => patch({ favoredIngredient })}
             />
-            <Flag
+            <div className="space-y-2">
+              <Label htmlFor="ingredient-name">Ingredient</Label>
+              <Input
+                id="ingredient-name"
+                value={house.ingredientName}
+                maxLength={60}
+                placeholder="Clams"
+                onChange={(event) => patch({ ingredientName: event.target.value })}
+              />
+            </div>
+            <CheckRow
               id="dish"
-              label="Wanted weekly dish"
-              detail="The menu is serving the dish the district asked for."
+              label={`${house.dishName.trim() || "Wanted dish"} · +0.25`}
+              detail="Checked when the menu is serving the dish the district asked for. Both boxes also add 0.15."
               checked={house.wantedDish}
               onCheckedChange={(wantedDish) => patch({ wantedDish })}
             />
+            <div className="space-y-2">
+              <Label htmlFor="dish-name">Dish</Label>
+              <Input
+                id="dish-name"
+                value={house.dishName}
+                maxLength={60}
+                placeholder="Cioppino"
+                onChange={(event) => patch({ dishName: event.target.value })}
+              />
+            </div>
           </div>
         </Section>
 
         <Section
           title="The street"
-          blurb="Competitors thin the crowd. Service and trouble decide how many of the interested people actually sit."
+          blurb="Each open rival, each backer, and each kind of trouble is its own box. The baseline multiplies them into the count."
         >
           <div className="space-y-2">
-            <Label htmlFor="competitors">Competing venues nearby</Label>
-            <Input
-              id="competitors"
-              inputMode="numeric"
-              className="tabular-nums sm:max-w-40"
-              value={house.competitors}
-              onChange={(event) => {
-                const competitors = parseBound(event.target.value, 0, 40);
-                if (competitors !== null) patch({ competitors });
-              }}
-            />
-            <p className="text-xs text-muted-foreground">
-              Saturation constant {formatFixed(region.lambda, 2)} for {region.name}.
+            <p className="text-sm font-medium">Open rivals · {house.venues.filter((venue) => venue.open).length}</p>
+            <p className="text-xs leading-5 text-muted-foreground">
+              Only checked venues count. {region.name} uses saturation {formatFixed(region.lambda, 2)}.
             </p>
+            <ul className="space-y-2">
+              {house.venues.map((venue) => (
+                <li key={venue.id} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`venue-${venue.id}`}
+                    checked={venue.open}
+                    onCheckedChange={(open) =>
+                      patch({
+                        venues: house.venues.map((entry) =>
+                          entry.id === venue.id ? { ...entry, open } : entry,
+                        ),
+                      })
+                    }
+                  />
+                  <Label htmlFor={`venue-${venue.id}`} className="sr-only">
+                    {venue.name || "Rival"} is open
+                  </Label>
+                  <Input
+                    aria-label={`Name of rival ${venue.name || "venue"}`}
+                    value={venue.name}
+                    maxLength={60}
+                    placeholder="Rival kitchen"
+                    onChange={(event) =>
+                      patch({
+                        venues: house.venues.map((entry) =>
+                          entry.id === venue.id ? { ...entry, name: event.target.value } : entry,
+                        ),
+                      })
+                    }
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Remove ${venue.name || "rival"}`}
+                    onClick={() => patch({ venues: house.venues.filter((entry) => entry.id !== venue.id) })}
+                  >
+                    <Trash2 />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={house.venues.length >= 12}
+              onClick={() =>
+                patch({
+                  venues: [
+                    ...house.venues,
+                    { id: crypto.randomUUID(), name: "", open: true },
+                  ],
+                })
+              }
+            >
+              <Plus />
+              Add a rival
+            </Button>
           </div>
           <div className="grid gap-2">
             {region.systems.map((option) => (
-              <Choice
+              <CheckRow
                 key={option.id}
-                pressed={house.system === option.id}
-                title={`${option.label} · ${formatFixed(option.value, 2)}`}
+                id={`system-${option.id}`}
+                checked={house.system === option.id}
+                label={`${option.label} · ${formatFixed(option.value, 2)}`}
                 detail={option.detail}
-                onClick={() => patch({ system: option.id as SystemId })}
+                onCheckedChange={(on) => {
+                  if (on) patch({ system: option.id as SystemId });
+                }}
               />
             ))}
           </div>
-          <div className="grid gap-2 sm:grid-cols-3">
+          <div className="grid gap-2">
             {SERVICES.map((service) => (
-              <Choice
+              <CheckRow
                 key={service.id}
-                pressed={house.service === service.id}
-                title={service.label}
-                detail={`${formatFixed(service.value, 2)} · ${service.detail}`}
-                onClick={() => patch({ service: service.id as ServiceStyle })}
+                id={`service-${service.id}`}
+                checked={house.service === service.id}
+                label={`${service.label} · ${formatFixed(service.value, 2)}`}
+                detail={service.detail}
+                onCheckedChange={(on) => {
+                  if (on) patch({ service: service.id as ServiceStyle });
+                }}
               />
             ))}
           </div>
           <div className="grid gap-2">
             {FRICTIONS.map((friction) => (
-              <Choice
+              <CheckRow
                 key={friction.id}
-                pressed={house.friction === friction.id}
-                title={friction.label}
-                detail={`${formatFixed(friction.value, 2)} · ${friction.detail}`}
-                onClick={() => patch({ friction: friction.id as FrictionId })}
+                id={`friction-${friction.id}`}
+                checked={house.friction === friction.id}
+                label={`${friction.label} · ${formatFixed(friction.value, 2)}`}
+                detail={friction.detail}
+                onCheckedChange={(on) => {
+                  if (on) patch({ friction: friction.id as FrictionId });
+                }}
               />
             ))}
           </div>
         </Section>
+
+        <details className="rounded-xl bg-card px-4 py-3 text-sm ring-1 ring-foreground/10">
+          <summary className="cursor-pointer font-medium">Put this on a website</summary>
+          <div className="mt-3 space-y-3 leading-6 text-muted-foreground">
+            <p>This page is the site. Publish it, then send people the link. They tick the boxes and the count follows.</p>
+            <ol className="list-decimal space-y-2 pl-5">
+              <li>In this chat, click Publish. Copy the public link and send it.</li>
+              <li>
+                Or push the project to GitHub, open Settings, then Pages, and set Source to GitHub Actions. The address
+                is https://your-name.github.io/your-repository/.
+              </li>
+            </ol>
+            <p>What people type stays in their browser. A downloaded sheet is the copy they can pass around.</p>
+          </div>
+        </details>
       </div>
 
       <div className="order-1 lg:order-2">
@@ -420,26 +562,3 @@ export function CustomerBoard() {
   );
 }
 
-function Flag({
-  id,
-  label,
-  detail,
-  checked,
-  onCheckedChange,
-}: {
-  id: string;
-  label: string;
-  detail: string;
-  checked: boolean;
-  onCheckedChange: (checked: boolean) => void;
-}) {
-  return (
-    <div className="flex items-start gap-3 rounded-lg bg-muted/50 px-3 py-3">
-      <Checkbox id={id} className="mt-0.5" checked={checked} onCheckedChange={onCheckedChange} />
-      <div>
-        <Label htmlFor={id}>{label}</Label>
-        <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
-      </div>
-    </div>
-  );
-}

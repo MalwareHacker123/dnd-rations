@@ -80,6 +80,7 @@ describe("customer equation", () => {
       ...exampleHouse(),
       region: "fast-food",
       system: "riot",
+      venues: [],
       competitors: 0,
       districtTier: 1,
     });
@@ -90,6 +91,7 @@ describe("customer equation", () => {
       ...exampleHouse(),
       region: "pimiento",
       system: "unaligned",
+      venues: [],
       competitors: 0,
       districtTier: 2,
     });
@@ -108,6 +110,7 @@ describe("customer equation", () => {
       checkTotal: 30,
       favoredIngredient: true,
       wantedDish: true,
+      venues: [],
       competitors: 0,
       service: "grab",
       friction: "normal",
@@ -138,6 +141,39 @@ describe("customer equation", () => {
     expect(paid?.system).toBe("cartel-paid");
     expect(paid?.districtTier).toBe(2);
     expect(sanitizeHouse(null)).toBeNull();
+  });
+
+  it("lets each checkbox change only its own term", () => {
+    const both = calculateHouse(exampleHouse());
+    const ingredient = both.factors.find((factor) => factor.id === "ingredient");
+    const dish = both.factors.find((factor) => factor.id === "dish");
+    const synergy = both.factors.find((factor) => factor.id === "synergy");
+    expect(ingredient).toMatchObject({ on: true, label: "Clams", effect: "Weekly ingredient box adds 0.20" });
+    expect(dish).toMatchObject({ on: true, label: "Cioppino" });
+    expect(synergy?.on).toBe(true);
+
+    const noIngredient = calculateHouse({ ...exampleHouse(), favoredIngredient: false });
+    expect(noIngredient.mWeekly).toBe(1.25);
+    expect(noIngredient.interest).not.toBe(both.interest);
+    expect(noIngredient.factors.find((factor) => factor.id === "ingredient")?.on).toBe(false);
+    expect(noIngredient.factors.find((factor) => factor.id === "synergy")?.on).toBe(false);
+
+    const oneRivalClosed = calculateHouse({
+      ...exampleHouse(),
+      venues: exampleHouse().venues.map((venue) =>
+        venue.id === "red-lamp" ? { ...venue, open: false } : venue,
+      ),
+    });
+    expect(oneRivalClosed.competitors).toBe(2);
+    expect(oneRivalClosed.interest).not.toBe(both.interest);
+    expect(oneRivalClosed.factors.find((factor) => factor.id === "venue-red-lamp")?.on).toBe(false);
+  });
+
+  it("rebuilds named rivals from an older save that only stored a count", () => {
+    const house = sanitizeHouse({ ...exampleHouse(), venues: undefined, competitors: 2 });
+    expect(house?.venues).toHaveLength(2);
+    expect(house?.competitors).toBe(2);
+    expect(house?.venues.every((venue) => venue.open)).toBe(true);
   });
 });
 

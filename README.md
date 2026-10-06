@@ -6,6 +6,23 @@ Two sheets for the same table.
 
 **Supplies** is a checklist for food, water, feed, and gear on a fifth-edition trip. Tick who is eating, which animals are in harness, and what goes in the packs. The ledger totals the weight, the coin, and whether a cart, a mule, or the party can carry it. The sample trip is four people, one mule, a cart, and fourteen days of rations and water.
 
+## Show it to people
+
+This page is the website. Publish it, then send the link. Anyone who opens it can tick the boxes and watch the customer count change. What they type stays in their browser.
+
+**From Cursor:** click **Publish** in this chat. Copy the public link.
+
+**From GitHub Pages:**
+
+1. Push this project to a GitHub repository.
+2. In the repository, open **Settings → Pages**.
+3. Under **Build and deployment**, set **Source** to **GitHub Actions**.
+4. The workflow in `.github/workflows/pages.yml` publishes the site on every push to `main`.
+
+A project site is served at `https://<user>.github.io/<repository>/`. A user site (`<user>.github.io`) is served at the root. The workflow sets that path for you.
+
+`npm run build` also writes a static site to `out/`. That folder can be uploaded to any host that serves files.
+
 ## Save box
 
 Save names a sheet in this browser. That sheet stores the restaurant and the supply list together. Download writes a JSON file. Drop that file in Dropbox, Drive, or any folder, then load it on another machine with **Load file**.
@@ -26,21 +43,14 @@ npm run build
 
 `npm run build` writes a static site to `out/`. The live sheet and the named list stay in this browser. A downloaded JSON file is the copy you can keep in Dropbox.
 
-## Put it on GitHub Pages
-
-1. Push this project to a GitHub repository.
-2. In the repository, open **Settings → Pages**.
-3. Under **Build and deployment**, set **Source** to **GitHub Actions**.
-4. The workflow in `.github/workflows/pages.yml` publishes the site on every push to `main`.
-
-A project site is served at `https://<user>.github.io/<repository>/`. A user site (`<user>.github.io`) is served at the root. The workflow sets that path for you.
-
 ## What the customer count uses
 
 The count is `min(seats, floor(interested × conversion))`.
 
 - Effective foot traffic is the published regional curve, not a fresh logarithm. Vin is 782, Port District is 5,320, Fast Food is 6,293.
-- Food appeal is 0.35 cuisine + 0.30 price + 0.20 reputation + 0.15 weekly trend, then squared.
+- Food appeal is 0.35 cuisine + 0.30 price + 0.20 reputation + 0.15 weekly trend, then squared. The weekly term is a checkbox: ingredient +0.20, dish +0.25, and +0.15 more when both are checked.
+- Each rival is a checkbox. Only the checked kitchens count as competitors.
+- Cuisine, service, backing, and friction are checkboxes too. One box in each group stays on, and the panel lists the exact factor it contributes.
 - Port District scores a menu above tier 3 as 0.10. Vin Region scores a menu under tier 5 as 0.05.
 - In Pomodoro, a check under 10 sets reputation to 0.20 for 1d6 days.
 - Market decay is `e^(−λ × competitors)` times the regional system multiplier.

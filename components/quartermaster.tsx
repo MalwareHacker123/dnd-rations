@@ -235,8 +235,8 @@ export function Quartermaster() {
             Quartermaster
           </h1>
           <p className="mt-3 text-base leading-7 text-muted-foreground">
-            Count who will pay for a table, then check the packs for the road. A named sheet keeps both, and a
-            downloaded file can sit in Dropbox.
+            Tick a box and the count follows. Each ingredient, dish, rival, and bit of trouble is its own factor on
+            top of the baseline equation. A downloaded file can sit in Dropbox.
           </p>
         </div>
         <div className="no-print flex flex-wrap gap-2">

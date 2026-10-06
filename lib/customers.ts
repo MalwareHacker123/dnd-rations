@@ -1,4 +1,4 @@
-import { formatCount } from "@/lib/format";
+import { formatCount, formatFixed } from "@/lib/format";
 
 export type RegionId = "vin" | "mi" | "pomodoro" | "scones" | "pimiento" | "port" | "fast-food";
 
@@ -17,21 +17,38 @@ export type SystemId =
   | "hype"
   | "riot";
 
+export type Venue = {
+  id: string;
+  name: string;
+  open: boolean;
+};
+
 export type House = {
   name: string;
   region: RegionId;
   cuisine: CuisineFit;
+  cuisineName: string;
   menuTier: number;
   districtTier: number;
   checkTotal: number;
   slumpDays: number;
   favoredIngredient: boolean;
+  ingredientName: string;
   wantedDish: boolean;
+  dishName: string;
+  venues: Venue[];
   competitors: number;
   system: SystemId;
   service: ServiceStyle;
   friction: FrictionId;
   capacity: number;
+};
+
+export type FactorLine = {
+  id: string;
+  on: boolean;
+  label: string;
+  effect: string;
 };
 
 export type HouseMath = {
@@ -48,6 +65,7 @@ export type HouseMath = {
   aFood: number;
   lambda: number;
   competitors: number;
+  factors: FactorLine[];
   mSystem: number;
   decay: number;
   eMarket: number;
@@ -279,17 +297,29 @@ function truncTo(value: number, digits: number): number {
   return cut / scale;
 }
 
+export function exampleVenues(): Venue[] {
+  return [
+    { id: "salt-wharf", name: "Salt Wharf", open: true },
+    { id: "net-and-nail", name: "Net and Nail", open: true },
+    { id: "red-lamp", name: "Red Lamp", open: true },
+  ];
+}
+
 export function exampleHouse(): House {
   return {
     name: "Italian Seafood Bistro",
     region: "port",
     cuisine: "favorite",
+    cuisineName: "Seafood",
     menuTier: 3,
     districtTier: 2,
     checkTotal: 16,
     slumpDays: 0,
     favoredIngredient: true,
+    ingredientName: "Clams",
     wantedDish: true,
+    dishName: "Cioppino",
+    venues: exampleVenues(),
     competitors: 3,
     system: "neutral",
     service: "casual",
@@ -298,12 +328,40 @@ export function exampleHouse(): House {
   };
 }
 
+export function competingCount(house: Pick<House, "venues">): number {
+  return house.venues.filter((venue) => venue.open).length;
+}
+
 function clampInt(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Math.floor(value)));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function textField(value: unknown, fallback: string): string {
+  return typeof value === "string" ? value.slice(0, 60) : fallback;
+}
+
+function venuesFrom(value: unknown, fallbackCount: number): Venue[] {
+  if (Array.isArray(value)) {
+    const venues: Venue[] = [];
+    for (const [index, entry] of value.entries()) {
+      if (!isRecord(entry) || venues.length >= 12) continue;
+      const id =
+        typeof entry.id === "string" && entry.id.trim() ? entry.id.trim().slice(0, 80) : `venue-${index + 1}`;
+      const name = typeof entry.name === "string" ? entry.name.slice(0, 60) : "";
+      venues.push({ id, name, open: entry.open !== false });
+    }
+    return venues;
+  }
+  const count = clampInt(fallbackCount, 0, 12);
+  return Array.from({ length: count }, (_, index) => ({
+    id: `competitor-${index + 1}`,
+    name: `Competitor ${index + 1}`,
+    open: true,
+  }));
 }
 
 export function systemFor(region: RegionId, system: SystemId): SystemOption {
@@ -332,11 +390,19 @@ export function sanitizeHouse(input: unknown): House | null {
       ? (input.friction as FrictionId)
       : base.friction;
   const name = typeof input.name === "string" ? input.name.slice(0, 80) : base.name;
+  const venues = venuesFrom(
+    input.venues,
+    typeof input.competitors === "number" ? input.competitors : base.competitors,
+  );
 
   return {
     name,
     region,
     cuisine,
+    cuisineName: textField(input.cuisineName, base.cuisineName),
+    ingredientName: textField(input.ingredientName, base.ingredientName),
+    dishName: textField(input.dishName, base.dishName),
+    venues,
     menuTier: clampInt(typeof input.menuTier === "number" ? input.menuTier : base.menuTier, 1, 6),
     districtTier: clampInt(
       typeof input.districtTier === "number" ? input.districtTier : REGIONS[region].districtTier,
@@ -347,7 +413,7 @@ export function sanitizeHouse(input: unknown): House | null {
     slumpDays: clampInt(typeof input.slumpDays === "number" ? input.slumpDays : 0, 0, 6),
     favoredIngredient: input.favoredIngredient === true,
     wantedDish: input.wantedDish === true,
-    competitors: clampInt(typeof input.competitors === "number" ? input.competitors : 0, 0, 40),
+    competitors: venues.filter((venue) => venue.open).length,
     system: systemFor(region, requested).id,
     service,
     friction,
@@ -434,7 +500,11 @@ export function calculateHouse(house: House): HouseMath {
   const rep = reputationMultiplier(house.region, house.checkTotal, house.slumpDays);
   const ingredient = house.favoredIngredient ? 1 : 0;
   const dish = house.wantedDish ? 1 : 0;
-  const mWeekly = roundTo(1 + 0.2 * ingredient + 0.25 * dish + 0.15 * ingredient * dish, 2);
+  const weeklyIngredient = 0.2 * ingredient;
+  const weeklyDish = 0.25 * dish;
+  const weeklySynergy = 0.15 * ingredient * dish;
+  const mWeekly = roundTo(1 + weeklyIngredient + weeklyDish + weeklySynergy, 2);
+  const competitors = competingCount(house);
   const weights = {
     cuisine: roundTo(0.35 * mCuisine, 3),
     price: roundTo(0.3 * price.value, 3),
@@ -443,7 +513,7 @@ export function calculateHouse(house: House): HouseMath {
   };
   const aFood = roundTo(weights.cuisine + weights.price + weights.rep + weights.weekly, 2);
   const mSystem = systemFor(house.region, house.system).value;
-  const decay = roundTo(Math.exp(-region.lambda * house.competitors), 4);
+  const decay = roundTo(Math.exp(-region.lambda * competitors), 4);
   const eMarket = roundTo(decay * mSystem, 4);
   const appealSquare = roundTo(aFood * aFood, 4);
   const interest = Math.floor(roundTo(region.bEff * appealSquare * eMarket, 4));
@@ -456,6 +526,92 @@ export function calculateHouse(house: House): HouseMath {
   const served = Math.min(house.capacity, Math.max(0, attracted));
   const turnedAway = Math.max(0, attracted - served);
   const copy = headlineFor(served, attracted, house.capacity);
+  const cuisineLabel = house.cuisineName.trim() || "Cuisine";
+  const ingredientLabel = house.ingredientName.trim() || "Favored ingredient";
+  const dishLabel = house.dishName.trim() || "Wanted dish";
+  const service = SERVICES.find((item) => item.id === house.service) ?? SERVICES[1];
+  const friction = FRICTIONS.find((item) => item.id === house.friction) ?? FRICTIONS[0];
+  const system = systemFor(house.region, house.system);
+  const factors: FactorLine[] = [
+    {
+      id: "traffic",
+      on: true,
+      label: `${region.name} baseline`,
+      effect: `${formatCount(region.bEff)} passers-by from base ${formatCount(region.base)} and wealth ${formatFixed(region.wealth, 2)}`,
+    },
+    {
+      id: "cuisine",
+      on: true,
+      label: `${cuisineLabel} · ${CUISINES.find((item) => item.id === house.cuisine)?.label ?? "Cuisine"}`,
+      effect: `Cuisine ${formatFixed(mCuisine, 2)} adds ${formatFixed(weights.cuisine, 3)} to appeal`,
+    },
+    {
+      id: "price",
+      on: true,
+      label: `Menu tier ${house.menuTier} against district tier ${house.districtTier}`,
+      effect: price.note
+        ? `${price.note} Price factor ${formatFixed(price.value, 2)}.`
+        : `Price factor ${formatFixed(price.value, 2)} adds ${formatFixed(weights.price, 3)} to appeal`,
+    },
+    {
+      id: "reputation",
+      on: true,
+      label: rep.note ? "Cook's reputation" : `Check ${house.checkTotal}`,
+      effect: rep.note
+        ? rep.note
+        : `Reputation ${formatFixed(rep.value, 2)} adds ${formatFixed(weights.rep, 3)} to appeal`,
+    },
+    {
+      id: "ingredient",
+      on: house.favoredIngredient,
+      label: ingredientLabel,
+      effect: house.favoredIngredient ? "Weekly ingredient box adds 0.20" : "Weekly ingredient box is off, so it adds 0",
+    },
+    {
+      id: "dish",
+      on: house.wantedDish,
+      label: dishLabel,
+      effect: house.wantedDish ? "Weekly dish box adds 0.25" : "Weekly dish box is off, so it adds 0",
+    },
+    {
+      id: "synergy",
+      on: house.favoredIngredient && house.wantedDish,
+      label: "Both weekly boxes",
+      effect:
+        house.favoredIngredient && house.wantedDish
+          ? "Synergy adds another 0.15"
+          : "Synergy stays at 0 until both weekly boxes are checked",
+    },
+    ...house.venues.map((venue) => ({
+      id: `venue-${venue.id}`,
+      on: venue.open,
+      label: venue.name.trim() || "Unnamed rival",
+      effect: venue.open
+        ? `Open rival. Counts in the ${formatCount(competitors)} competing venues.`
+        : "Closed. This rival does not count.",
+    })),
+    {
+      id: "system",
+      on: true,
+      label: system.label,
+      effect: `System multiplier ${formatFixed(system.value, 2)}`,
+    },
+    {
+      id: "service",
+      on: true,
+      label: service.label,
+      effect: `Service factor ${formatFixed(service.value, 2)}`,
+    },
+    {
+      id: "friction",
+      on: house.friction !== "normal",
+      label: friction.label,
+      effect:
+        house.friction === "normal"
+          ? "No extra friction. Factor 1.00"
+          : `Friction factor ${formatFixed(friction.value, 2)}`,
+    },
+  ];
 
   return {
     bEff: region.bEff,
@@ -470,7 +626,8 @@ export function calculateHouse(house: House): HouseMath {
     weights,
     aFood,
     lambda: region.lambda,
-    competitors: house.competitors,
+    competitors,
+    factors,
     mSystem,
     decay,
     eMarket,
