@@ -29,10 +29,37 @@ const selectClass =
   "h-11 w-full rounded-xl border border-input bg-card px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40";
 
 function parseBound(raw: string, min: number, max: number): number | null {
-  if (raw.trim() === "") return null;
+  if (raw.trim() === "") return 0;
   const value = Number(raw);
   if (!Number.isFinite(value)) return null;
   return Math.min(max, Math.max(min, Math.floor(value)));
+}
+
+function NumberBox({
+  label,
+  value,
+  max,
+  onValue,
+}: {
+  label: string;
+  value: number;
+  max: number;
+  onValue: (next: number) => void;
+}) {
+  return (
+    <Input
+      className="h-11 tabular-nums"
+      inputMode="numeric"
+      placeholder="0"
+      aria-label={label}
+      value={value === 0 ? "" : value}
+      onChange={(event) => {
+        const digits = event.target.value.replace(/\D/g, "");
+        const next = parseBound(digits, 0, max);
+        if (next !== null) onValue(next);
+      }}
+    />
+  );
 }
 
 function Field({
@@ -268,28 +295,20 @@ export function KitchenPage() {
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Nearby restaurants" hint="How many other kitchens are open.">
-              <Input
-                className="h-11 tabular-nums"
-                inputMode="numeric"
-                aria-label="Nearby restaurants"
+            <Field label="Nearby restaurants" hint="How many other kitchens are open. A blank box counts as 0.">
+              <NumberBox
+                label="Nearby restaurants"
                 value={choices.rivals}
-                onChange={(event) => {
-                  const rivals = parseBound(event.target.value, 0, 40);
-                  if (rivals !== null) patch({ rivals });
-                }}
+                max={40}
+                onValue={(rivals) => patch({ rivals })}
               />
             </Field>
-            <Field label="Reputation" hint="Type 0 if nobody knows you. Up to 20.">
-              <Input
-                className="h-11 tabular-nums"
-                inputMode="numeric"
-                aria-label="Reputation"
+            <Field label="Reputation" hint="A blank box counts as 0. Up to 20.">
+              <NumberBox
+                label="Reputation"
                 value={choices.reputation}
-                onChange={(event) => {
-                  const reputation = parseBound(event.target.value, 0, 20);
-                  if (reputation !== null) patch({ reputation });
-                }}
+                max={20}
+                onValue={(reputation) => patch({ reputation })}
               />
             </Field>
           </div>
@@ -313,28 +332,20 @@ export function KitchenPage() {
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Cooking or charisma roll" hint="Type the roll. A normal check sits around 10 to 15.">
-              <Input
-                className="h-11 tabular-nums"
-                inputMode="numeric"
-                aria-label="Cooking or charisma roll"
+            <Field label="Cooking or charisma roll" hint="Type the roll. A normal check sits around 10 to 15. A blank box counts as 0.">
+              <NumberBox
+                label="Cooking or charisma roll"
                 value={choices.roll}
-                onChange={(event) => {
-                  const roll = parseBound(event.target.value, 0, 40);
-                  if (roll !== null) patch({ roll });
-                }}
+                max={40}
+                onValue={(roll) => patch({ roll })}
               />
             </Field>
-            <Field label="Seats" hint="How many people you can feed.">
-              <Input
-                className="h-11 tabular-nums"
-                inputMode="numeric"
-                aria-label="Seats"
+            <Field label="Seats" hint="How many people you can feed. A blank box counts as 0.">
+              <NumberBox
+                label="Seats"
                 value={choices.seats}
-                onChange={(event) => {
-                  const seats = parseBound(event.target.value, 0, 100000);
-                  if (seats !== null) patch({ seats });
-                }}
+                max={100000}
+                onValue={(seats) => patch({ seats })}
               />
             </Field>
           </div>
