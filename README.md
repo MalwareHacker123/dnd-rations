@@ -52,7 +52,8 @@ The count is `min(seats, floor(interested × conversion))`.
 - Each rival is a checkbox. Only the checked kitchens count as competitors.
 - Cuisine, service, backing, and friction are checkboxes too. One box in each group stays on, and the panel lists the exact factor it contributes.
 - Port District scores a menu above tier 3 as 0.10. Vin Region scores a menu under tier 5 as 0.05.
-- In Pomodoro, a check under 10 sets reputation to 0.20 for 1d6 days.
+- In Pomodoro, a check under 10 sets reputation to 0.20 for 1d6 days. That slump ignores the name.
+- A reputation of 0 leaves the crowd alone, which is how the Port night stays at 5,821 interested. Each point above that multiplies interested people, and the people who come to the door, by e^(reputation / 6). Seats still cap who gets served.
 - Market decay is `e^(−λ × competitors)` times the regional system multiplier.
 - Conversion follows the logistic curve. The sheet keeps the first four decimals of that curve, which is how the Port bistro lands on 58.16%. Grab-and-go can push conversion past 100%.
 

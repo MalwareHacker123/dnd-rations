@@ -46,7 +46,7 @@ export type House = {
   trafficWealth?: number;
   /** When set, this replaces the region's backing multiplier. */
   systemValue?: number;
-  /** Added to the cook's reputation after the roll, unless a slump is in effect. */
+  /** Name recognition, 0–20. Above 0 it multiplies how many people come, unless a slump is in effect. */
   reputationBonus?: number;
   /** Averaged cuisine multiplier when more than one dish or region is selected. */
   cuisineValue?: number;
@@ -494,6 +494,12 @@ export function reputationMultiplier(
   return { value: roundTo(0.5 + checkTotal / 20, 2), note: null };
 }
 
+/** How hard a known name pulls people to the door. Zero leaves the worksheet untouched. */
+export function famePull(reputation: number): number {
+  if (!(reputation > 0)) return 1;
+  return roundTo(Math.exp(reputation / 6), 4);
+}
+
 function serviceValue(service: ServiceStyle): number {
   return SERVICES.find((item) => item.id === service)?.value ?? 1;
 }
@@ -502,7 +508,12 @@ function frictionValue(friction: FrictionId): number {
   return FRICTIONS.find((item) => item.id === friction)?.value ?? 1;
 }
 
-function headlineFor(served: number, attracted: number, capacity: number): { headline: string; detail: string } {
+function headlineFor(
+  served: number,
+  attracted: number,
+  capacity: number,
+  fame = 1,
+): { headline: string; detail: string } {
   const turned = Math.max(0, attracted - served);
   if (capacity === 0 && attracted > 0) {
     return {
@@ -512,6 +523,12 @@ function headlineFor(served: number, attracted: number, capacity: number): { hea
   }
   if (attracted === 0) {
     return { headline: "The street walks past.", detail: "Nobody tries to come in." };
+  }
+  if (served === capacity && turned > 0 && fame >= 2) {
+    return {
+      headline: "The name packs the street.",
+      detail: `${formatCount(served)} paying customers. ${formatCount(turned)} more heard the name and could not get a seat.`,
+    };
   }
   if (served === capacity && turned > 0) {
     return {
@@ -538,12 +555,11 @@ export function calculateHouse(house: House): HouseMath {
   const rep =
     typeof house.reputationValue === "number"
       ? { value: house.reputationValue, note: house.reputationNote ?? null }
-      : rolled.note || !house.reputationBonus
-        ? rolled
-        : {
-            value: roundTo(rolled.value + house.reputationBonus / 40, 2),
-            note: null,
-          };
+      : rolled;
+  const fame =
+    !rep.note && typeof house.reputationBonus === "number" && house.reputationBonus > 0
+      ? famePull(house.reputationBonus)
+      : 1;
   const ingredient = house.favoredIngredient ? 1 : 0;
   const dish = house.wantedDish ? 1 : 0;
   const weeklyIngredient = 0.2 * ingredient;
@@ -572,7 +588,7 @@ export function calculateHouse(house: House): HouseMath {
   const decay = roundTo(Math.exp(-lambda * competitors), 4);
   const eMarket = roundTo(decay * mSystem, 4);
   const appealSquare = roundTo(aFood * aFood, 4);
-  const interest = Math.floor(roundTo(bEff * appealSquare * eMarket, 4));
+  const interest = Math.floor(roundTo(bEff * appealSquare * eMarket * fame, 4));
   const expTerm = roundTo(Math.exp(-4 * (aFood - 1)), 4);
   const sigmoid = truncTo(crMax / (1 + expTerm), 4);
   const fService = typeof house.serviceFactor === "number" ? house.serviceFactor : serviceValue(house.service);
@@ -581,7 +597,7 @@ export function calculateHouse(house: House): HouseMath {
   const attracted = Math.floor(roundTo(interest * cr, 4));
   const served = Math.min(house.capacity, Math.max(0, attracted));
   const turnedAway = Math.max(0, attracted - served);
-  const copy = headlineFor(served, attracted, house.capacity);
+  const copy = headlineFor(served, attracted, house.capacity, fame);
   const cuisineLabel = house.cuisineName.trim() || "Cuisine";
   const ingredientLabel = house.ingredientName.trim() || "Favored ingredient";
   const dishLabel = house.dishName.trim() || "Wanted dish";
@@ -615,7 +631,9 @@ export function calculateHouse(house: House): HouseMath {
       label: rep.note ? "Cook's reputation" : `Check ${house.checkTotal}`,
       effect: rep.note
         ? rep.note
-        : `Reputation ${formatFixed(rep.value, 2)} adds ${formatFixed(weights.rep, 3)} to appeal`,
+        : fame > 1
+          ? `The roll sets reputation ${formatFixed(rep.value, 2)}. A name of ${house.reputationBonus} pulls ${formatFixed(fame, 2)} times as many people to the door.`
+          : `Reputation ${formatFixed(rep.value, 2)} adds ${formatFixed(weights.rep, 3)} to appeal`,
     },
     {
       id: "ingredient",

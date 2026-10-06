@@ -421,7 +421,10 @@ export function KitchenPage() {
                 onValue={(rivals) => patch({ rivals })}
               />
             </Field>
-            <Field label="Reputation" hint="A blank box counts as 0. Up to 20.">
+            <Field
+              label="Reputation"
+              hint="A blank box counts as 0. A high name fills the street. Seats still cap who you serve. Up to 20."
+            >
               <NumberBox
                 label="Reputation"
                 value={choices.reputation}

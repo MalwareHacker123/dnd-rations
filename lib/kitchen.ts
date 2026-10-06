@@ -4,6 +4,7 @@ import {
   SERVICES,
   calculateHouse,
   cuisineMultiplier,
+  famePull,
   priceMultiplier,
   roundTo,
   type CuisineFit,
@@ -394,9 +395,19 @@ export function kitchenCount(choices: KitchenChoices) {
   const attracted = Math.floor(roundTo(interest * primary.cr, 4));
   const served = Math.min(clean.seats, Math.max(0, attracted));
   const turnedAway = Math.max(0, attracted - served);
-  const headline = served === clean.seats && turnedAway > 0 ? "Fully booked." : attracted === 0 ? "The street walks past." : "There is still room.";
-  const detail =
-    turnedAway > 0
+  const slump = clean.regions.includes("pomodoro") && clean.roll < 10;
+  const fame = slump ? 1 : famePull(clean.reputation);
+  const packed = fame >= 2 && served === clean.seats && turnedAway > 0;
+  const headline = packed
+    ? "The name packs the street."
+    : served === clean.seats && turnedAway > 0
+      ? "Fully booked."
+      : attracted === 0
+        ? "The street walks past."
+        : "There is still room.";
+  const detail = packed
+    ? `${formatCount(served)} paying customers. ${formatCount(turnedAway)} more heard the name and could not get a seat.`
+    : turnedAway > 0
       ? `${formatCount(served)} paying customers. ${formatCount(turnedAway)} turned away.`
       : `${formatCount(served)} paying customers. A longer menu brings a bigger crowd.`;
   return { ...primary, interest, attracted, served, turnedAway, headline, detail };

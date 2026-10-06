@@ -44,7 +44,30 @@ describe("kitchen slip", () => {
     expect(kitchenCount({ ...exampleChoices(), week: "no" }).mWeekly).toBe(1);
     expect(kitchenCount({ ...exampleChoices(), week: "maybe" }).mWeekly).toBe(1.2);
     expect(kitchenCount({ ...exampleChoices(), conflicts: ["shakedown"] }).cr).toBeLessThan(base.cr);
-    expect(kitchenCount({ ...exampleChoices(), reputation: 8 }).mRep).toBeGreaterThan(base.mRep);
+  });
+
+  it("lets a known name pull far more people to the door", () => {
+    const base = kitchenCount(exampleChoices());
+    const known = kitchenCount({ ...exampleChoices(), reputation: 8 });
+    const legend = kitchenCount({ ...exampleChoices(), reputation: 20 });
+    expect(known.mRep).toBe(base.mRep);
+    expect(known.cr).toBe(base.cr);
+    expect(known.interest).toBeGreaterThan(base.interest * 3);
+    expect(known.attracted).toBeGreaterThan(base.attracted * 3);
+    expect(known.served).toBe(300);
+    expect(known.headline).toBe("The name packs the street.");
+    expect(legend.interest).toBeGreaterThan(base.interest * 20);
+    expect(legend.attracted).toBeGreaterThan(base.attracted * 20);
+    expect(legend.served).toBe(300);
+    const slumped = kitchenCount({
+      ...exampleChoices(),
+      regions: ["pomodoro"],
+      roll: 8,
+      reputation: 20,
+    });
+    const quiet = kitchenCount({ ...exampleChoices(), regions: ["pomodoro"], roll: 8, reputation: 0 });
+    expect(slumped.interest).toBe(quiet.interest);
+    expect(slumped.attracted).toBe(quiet.attracted);
   });
 
   it("keeps a rich kitchen out of Vin unless the dish is fine", () => {

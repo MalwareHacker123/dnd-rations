@@ -3,7 +3,9 @@ import {
   calculateHouse,
   cuisineMultiplier,
   exampleHouse,
+  famePull,
   priceMultiplier,
+  roundTo,
   REGIONS,
   reputationMultiplier,
   sanitizeHouse,
@@ -28,6 +30,29 @@ describe("customer equation", () => {
     expect(math.served).toBe(300);
     expect(math.turnedAway).toBe(3085);
     expect(math.headline).toBe("Fully booked.");
+  });
+
+  it("multiplies the crowd by the kitchen's name and leaves a blank name alone", () => {
+    const base = calculateHouse(exampleHouse());
+    expect(famePull(0)).toBe(1);
+    expect(famePull(10)).toBe(roundTo(Math.exp(10 / 6), 4));
+    const famous = calculateHouse({ ...exampleHouse(), reputationBonus: 10 });
+    expect(famous.mRep).toBe(base.mRep);
+    expect(famous.cr).toBe(base.cr);
+    expect(famous.interest).toBe(Math.floor(roundTo(5320 * 1.7161 * 0.6376 * famePull(10), 4)));
+    expect(famous.interest).toBeGreaterThan(base.interest * 5);
+    expect(famous.attracted).toBe(Math.floor(roundTo(famous.interest * famous.cr, 4)));
+    expect(famous.served).toBe(300);
+    expect(famous.headline).toBe("The name packs the street.");
+    const slumped = calculateHouse({
+      ...exampleHouse(),
+      region: "pomodoro",
+      checkTotal: 8,
+      slumpDays: 1,
+      reputationBonus: 20,
+    });
+    const quiet = calculateHouse({ ...exampleHouse(), region: "pomodoro", checkTotal: 8, slumpDays: 1 });
+    expect(slumped.interest).toBe(quiet.interest);
   });
 
   it("uses the published foot-traffic table", () => {
