@@ -46,17 +46,36 @@ function NumberBox({
   max: number;
   onValue: (next: number) => void;
 }) {
+  const [text, setText] = useState(value === 0 ? "" : String(value));
+  const [seen, setSeen] = useState(value);
+  if (value !== seen) {
+    setSeen(value);
+    setText(value === 0 ? "" : String(value));
+  }
+
   return (
     <Input
       className="h-11 tabular-nums"
+      type="text"
       inputMode="numeric"
-      placeholder="0"
+      autoComplete="off"
       aria-label={label}
-      value={value === 0 ? "" : value}
+      value={text}
       onChange={(event) => {
         const digits = event.target.value.replace(/\D/g, "");
+        if (digits === "" || /^0+$/.test(digits)) {
+          setText("");
+          onValue(0);
+          return;
+        }
         const next = parseBound(digits, 0, max);
-        if (next !== null) onValue(next);
+        if (next === null || next === 0) {
+          setText("");
+          onValue(0);
+          return;
+        }
+        setText(String(next));
+        onValue(next);
       }}
     />
   );
