@@ -8,11 +8,15 @@ import { Input } from "@/components/ui/input";
 import { REGIONS, REGION_ORDER, type RegionId } from "@/lib/customers";
 import { formatCount, formatPercent } from "@/lib/format";
 import {
+  APPLIANCES,
   CONFLICTS,
   WEALTH,
   WEEKS,
   choicesFromHouse,
+  dishLimit,
   kitchenCount,
+  kitchenRoom,
+  recipesKnown,
   rollLine,
   toHouse,
   type ConflictId,
@@ -21,7 +25,7 @@ import {
   type WeekAnswer,
 } from "@/lib/kitchen";
 import { getKitchenSnapshot, getServerKitchenSnapshot, setKitchenSnapshot, subscribeKitchen } from "@/lib/kitchen-store";
-import { DISHES, INGREDIENTS, dishesForIngredients } from "@/lib/pantry";
+import { DISHES, INGREDIENTS, dishesForIngredients, type ApplianceId } from "@/lib/pantry";
 import { getSaveSnapshot, getServerSaveSnapshot, serializeSheet, setSaveSnapshot, sheetFilename, subscribeSaves, upsertSave } from "@/lib/saves";
 import { getServerTripSnapshot, getTripSnapshot, setTripSnapshot, subscribeTrip } from "@/lib/storage";
 
@@ -99,10 +103,19 @@ function Field({
   );
 }
 
-function choiceSummary(names: string[]): string {
-  if (names.length === 0) return "Choose at least one";
+function choiceSummary(names: string[], emptyLabel: string): string {
+  if (names.length === 0) return emptyLabel;
   if (names.length <= 2) return names.join(", ");
   return `${names[0]}, ${names[1]} +${names.length - 2}`;
+}
+
+function dishHint(appliances: readonly ApplianceId[], roll: number): string {
+  const room = kitchenRoom(appliances);
+  const known = recipesKnown(roll);
+  const limit = dishLimit(appliances, roll);
+  if (room === 0) return "The book has every plate for these ingredients. Tick some equipment before anything can cook.";
+  const plates = limit === 1 ? "1 dish" : `${limit} dishes`;
+  return `The book lists every plate for these ingredients. You can run ${plates}: the roll covers ${known}, and the kitchen holds ${room}.`;
 }
 
 function phrase(items: string[]): string {
@@ -117,11 +130,13 @@ function MultiPick<T extends string>({
   options,
   selected,
   onToggle,
+  emptyLabel = "Choose at least one",
 }: {
   label: string;
-  options: { id: T; label: string; detail?: string }[];
+  options: { id: T; label: string; detail?: string; disabled?: boolean }[];
   selected: readonly T[];
   onToggle: (id: T, on: boolean) => void;
+  emptyLabel?: string;
 }) {
   const names = options.filter((option) => selected.includes(option.id)).map((option) => option.label);
   return (
@@ -130,17 +145,27 @@ function MultiPick<T extends string>({
         aria-label={label}
         className={`${selectClass} flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden`}
       >
-        <span className="truncate text-left">{choiceSummary(names)}</span>
+        <span className="truncate text-left">{choiceSummary(names, emptyLabel)}</span>
         <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
       </summary>
       <div className="mt-1 max-h-72 w-full overflow-auto rounded-xl border border-input bg-card p-1">
         {options.map((option) => (
-          <label key={option.id} className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg px-2 py-2 hover:bg-muted">
+          <label
+            key={option.id}
+            className={`flex min-h-11 items-start gap-3 rounded-lg px-2 py-2 ${option.disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-muted"}`}
+            onClick={(event) => {
+              if (option.disabled) event.preventDefault();
+            }}
+          >
             <Checkbox
               className="mt-0.5"
               aria-label={option.label}
               checked={selected.includes(option.id)}
-              onCheckedChange={(value) => onToggle(option.id, value === true)}
+              disabled={option.disabled}
+              onCheckedChange={(value) => {
+                if (option.disabled) return;
+                onToggle(option.id, value === true);
+              }}
             />
             <span className="min-w-0">
               <span className="block text-sm">{option.label}</span>
@@ -159,6 +184,7 @@ export function KitchenPage() {
   const saves = useSyncExternalStore(subscribeSaves, getSaveSnapshot, getServerSaveSnapshot);
   const math = useMemo(() => kitchenCount(choices), [choices]);
   const dishes = dishesForIngredients(choices.ingredients);
+  const limit = dishLimit(choices.appliances, choices.roll);
   const [draftName, setDraftName] = useState("");
   const [notice, setNotice] = useState("");
   const dishNames = choices.dishes
@@ -187,8 +213,20 @@ export function KitchenPage() {
       const dish = DISHES.find((item) => item.id === dishId);
       return dish ? allowed.has(dish.ingredient) : false;
     });
-    if (nextDishes.length === 0) nextDishes = [dishesForIngredients(ingredients)[0].id];
+    if (nextDishes.length === 0) {
+      const first = dishesForIngredients(ingredients).find((dish) => choices.appliances.includes(dish.appliance));
+      nextDishes = first && dishLimit(choices.appliances, choices.roll) > 0 ? [first.id] : [];
+    }
     setKitchenSnapshot({ ...choices, ingredients, dishes: nextDishes });
+  }
+
+  function onAppliances(id: ApplianceId, on: boolean) {
+    const appliances = on
+      ? choices.appliances.includes(id)
+        ? choices.appliances
+        : [...choices.appliances, id]
+      : choices.appliances.filter((item) => item !== id);
+    setKitchenSnapshot({ ...choices, appliances });
   }
 
   function onDishes(id: string, on: boolean) {
@@ -280,7 +318,7 @@ export function KitchenPage() {
         <p className="text-xs font-medium tracking-[0.18em] text-primary uppercase">Service tonight</p>
         <h1 className="mt-2 font-heading text-4xl font-semibold tracking-tight sm:text-5xl">The Kitchen</h1>
         <p className="mt-3 max-w-xl text-base leading-7 text-muted-foreground">
-          Open a box and tick every choice that fits the night. The count tells you who sits down.
+          Tick the equipment in the kitchen. That decides which dishes from the book you can run, and how many.
         </p>
       </header>
 
@@ -295,10 +333,36 @@ export function KitchenPage() {
             />
           </Field>
 
-          <Field label="Dishes" hint="Tick every plate you are serving. Only dishes for the ingredients above are listed.">
+          <Field label="Your kitchen" hint="Tick the large equipment you actually have. A blank kitchen cannot cook.">
+            <MultiPick
+              label="Your kitchen"
+              emptyLabel="Nothing in this kitchen"
+              options={APPLIANCES.map((item) => ({ id: item.id, label: item.label, detail: item.detail }))}
+              selected={choices.appliances}
+              onToggle={onAppliances}
+            />
+          </Field>
+
+          <Field label="Dishes" hint={dishHint(choices.appliances, choices.roll)}>
             <MultiPick
               label="Dishes"
-              options={dishes.map((item) => ({ id: item.id, label: item.name }))}
+              emptyLabel="Nothing on the fire"
+              options={dishes.map((item) => {
+                const appliance = APPLIANCES.find((gear) => gear.id === item.appliance);
+                const owned = choices.appliances.includes(item.appliance);
+                const selected = choices.dishes.includes(item.id);
+                const full = !selected && choices.dishes.length >= limit;
+                return {
+                  id: item.id,
+                  label: item.name,
+                  detail: owned
+                    ? full
+                      ? `This kitchen can run ${limit === 1 ? "1 dish" : `${limit} dishes`}.`
+                      : undefined
+                    : `Needs ${appliance ? appliance.label.toLowerCase() : "more equipment"}.`,
+                  disabled: !selected && (!owned || full),
+                };
+              })}
               selected={choices.dishes}
               onToggle={onDishes}
             />
@@ -429,7 +493,7 @@ export function KitchenPage() {
             <div className="bg-primary px-5 py-3 text-primary-foreground">
               <p className="text-xs tracking-[0.16em] uppercase">Tonight&apos;s ticket</p>
               <h2 className="mt-1 font-heading text-2xl font-semibold" data-testid="house-headline">
-                {math.headline}
+                {choices.dishes.length === 0 ? "Nothing is on the fire." : math.headline}
               </h2>
             </div>
             <div className="space-y-4 p-5">
@@ -440,7 +504,9 @@ export function KitchenPage() {
                 <p className="text-sm text-muted-foreground">paying customers</p>
               </div>
               <p className="text-sm leading-6">
-                {phrase(dishNames)} made with {phrase(ingredientNames)} in {phrase(regionNames)}.
+                {choices.dishes.length === 0
+                  ? "Nothing from the book is on the fire."
+                  : `${phrase(dishNames)} made with ${phrase(ingredientNames)} in ${phrase(regionNames)}.`}
               </p>
               <p className="text-sm leading-6">{rollLine(choices.roll, choices.regions)}</p>
               <dl className="space-y-2 text-sm">

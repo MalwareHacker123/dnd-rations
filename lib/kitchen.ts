@@ -12,7 +12,15 @@ import {
   type RegionId,
   type ServiceStyle,
 } from "@/lib/customers";
-import { DISHES, INGREDIENTS, dishesForIngredients, tasteFor, type Course, type Dish } from "@/lib/pantry";
+import {
+  DISHES,
+  INGREDIENTS,
+  dishesForIngredients,
+  tasteFor,
+  type ApplianceId,
+  type Course,
+  type Dish,
+} from "@/lib/pantry";
 
 export type WealthId = "poor" | "modest" | "comfortable" | "well-off" | "rich";
 export type ConflictId = "none" | "shakedown" | "unpaid" | "unlicensed" | "riot" | "hype" | "backed";
@@ -30,6 +38,7 @@ export type KitchenChoices = {
   roll: number;
   week: WeekAnswer;
   seats: number;
+  appliances: ApplianceId[];
 };
 
 export const WEALTH: { id: WealthId; label: string; detail: string; value: number; district: number }[] = [
@@ -50,6 +59,20 @@ export const CONFLICTS: { id: ConflictId; label: string; detail: string; system:
   { id: "backed", label: "A powerful backer", detail: "A patron is holding the door open.", system: 1.2, friction: "normal" },
 ];
 
+export const APPLIANCES: {
+  id: ApplianceId;
+  label: string;
+  detail: string;
+  slots: number;
+}[] = [
+  { id: "stove", label: "Stove", detail: "Two pots. Stews, soups, and porridge.", slots: 2 },
+  { id: "countertop", label: "Countertop cooker", detail: "One hot plate. Griddle food.", slots: 1 },
+  { id: "fryer", label: "Deep fryer", detail: "One basket. Fried plates.", slots: 1 },
+  { id: "oven", label: "Oven", detail: "Bread, pies, and roasts.", slots: 2 },
+  { id: "ice", label: "Ice storage", detail: "A cold room for platters and boards.", slots: 2 },
+  { id: "larder", label: "Larder", detail: "Dry storage. Hold more dishes than the fire can cook at once.", slots: 3 },
+];
+
 export const WEEKS: { id: WeekAnswer; label: string }[] = [
   { id: "yes", label: "Yes" },
   { id: "maybe", label: "Maybe" },
@@ -61,6 +84,26 @@ const WEALTH_IDS = WEALTH.map((item) => item.id);
 const CONFLICT_IDS = CONFLICTS.map((item) => item.id);
 const WEEK_IDS = new Set(WEEKS.map((item) => item.id));
 const INGREDIENT_IDS = INGREDIENTS.map((item) => item.id);
+const APPLIANCE_IDS = APPLIANCES.map((item) => item.id);
+
+export function recipesKnown(roll: number): number {
+  const clean = Math.max(0, Math.floor(roll));
+  if (clean < 10) return 1;
+  if (clean < 15) return 2;
+  if (clean < 20) return 3;
+  if (clean < 25) return 4;
+  return 5 + Math.floor((clean - 25) / 5);
+}
+
+export function kitchenRoom(appliances: readonly ApplianceId[]): number {
+  return appliances.reduce((sum, id) => sum + (APPLIANCES.find((item) => item.id === id)?.slots ?? 0), 0);
+}
+
+export function dishLimit(appliances: readonly ApplianceId[], roll: number): number {
+  const room = kitchenRoom(appliances);
+  if (room === 0) return 0;
+  return Math.min(recipesKnown(roll), room);
+}
 
 export function exampleChoices(): KitchenChoices {
   return {
@@ -75,6 +118,7 @@ export function exampleChoices(): KitchenChoices {
     roll: 16,
     week: "yes",
     seats: 300,
+    appliances: ["stove"],
   };
 }
 
@@ -109,7 +153,15 @@ export function sanitizeChoices(input: unknown): KitchenChoices | null {
   const menuIds = new Set(menu.map((item) => item.id));
   const requestedDishes = Array.isArray(input.dishes) ? input.dishes : input.dish;
   const dishRaw = Array.isArray(requestedDishes) ? requestedDishes : typeof requestedDishes === "string" ? [requestedDishes] : [];
-  const dishes = unique(dishRaw.filter((item): item is string => typeof item === "string" && menuIds.has(item)));
+  const requested = unique(dishRaw.filter((item): item is string => typeof item === "string" && menuIds.has(item)));
+  const appliances = Array.isArray(input.appliances)
+    ? unique(
+        input.appliances.filter((item): item is ApplianceId => typeof item === "string" && APPLIANCE_IDS.includes(item as ApplianceId)),
+      )
+    : inferAppliances(requested);
+  const cookable = new Set(menu.filter((dish) => appliances.includes(dish.appliance)).map((dish) => dish.id));
+  const roll = clamp(typeof input.roll === "number" ? input.roll : base.roll, 0, 40);
+  const dishes = requested.filter((id) => cookable.has(id)).slice(0, dishLimit(appliances, roll));
   const regions = pickIds(
     Array.isArray(input.regions) ? input.regions : input.region,
     REGION_IDS,
@@ -127,17 +179,27 @@ export function sanitizeChoices(input: unknown): KitchenChoices | null {
   return {
     name: typeof input.name === "string" ? input.name.slice(0, 60) : base.name,
     ingredients,
-    dishes: dishes.length > 0 ? dishes : [menu[0].id],
+    dishes,
     regions,
     rivals: clamp(typeof input.rivals === "number" ? input.rivals : base.rivals, 0, 40),
     reputation: clamp(typeof input.reputation === "number" ? input.reputation : base.reputation, 0, 20),
     wealths,
     conflicts,
-    roll: clamp(typeof input.roll === "number" ? input.roll : base.roll, 0, 40),
+    roll,
     week:
       typeof input.week === "string" && WEEK_IDS.has(input.week as WeekAnswer) ? (input.week as WeekAnswer) : base.week,
     seats: clamp(typeof input.seats === "number" ? input.seats : base.seats, 0, 100000),
+    appliances,
   };
+}
+
+function inferAppliances(dishIds: readonly string[]): ApplianceId[] {
+  const needed = unique(
+    dishIds
+      .map((id) => DISHES.find((dish) => dish.id === id)?.appliance)
+      .filter((id): id is ApplianceId => Boolean(id)),
+  );
+  return needed.length > 0 ? needed : ["stove"];
 }
 
 export function choicesFromHouse(house: House): KitchenChoices {
@@ -178,7 +240,6 @@ export function toHouse(choices: KitchenChoices): House {
   const selectedDishes = clean.dishes
     .map((id) => DISHES.find((item) => item.id === id))
     .filter((item): item is Dish => Boolean(item));
-  const dish = selectedDishes[0] ?? dishesForIngredients(clean.ingredients)[0];
   const wealthItems = clean.wealths
     .map((id) => WEALTH.find((item) => item.id === id))
     .filter((item): item is (typeof WEALTH)[number] => Boolean(item));
@@ -189,14 +250,39 @@ export function toHouse(choices: KitchenChoices): House {
     .map((id) => CONFLICTS.find((item) => item.id === id))
     .filter((item): item is (typeof CONFLICTS)[number] => Boolean(item));
   const conflict = realConflicts[0];
-  const course = courseOf(dish);
   const region = clean.regions[0];
-  const fit: CuisineFit = tasteFor(region, dish.ingredient);
   const venues = Array.from({ length: clean.rivals }, (_, index) => ({
     id: `rival-${index + 1}`,
     name: `Rival ${index + 1}`,
     open: true,
   }));
+  if (selectedDishes.length === 0) {
+    return {
+      name: clean.name.trim() || "Evening service",
+      region,
+      cuisine: "neutral",
+      cuisineName: "Nothing on the fire",
+      menuTier: 2,
+      districtTier: wealth.district,
+      checkTotal: clean.roll,
+      slumpDays: 0,
+      favoredIngredient: false,
+      ingredientName: "Nothing",
+      wantedDish: false,
+      dishName: "Nothing",
+      venues,
+      competitors: clean.rivals,
+      system: "neutral",
+      service: "casual",
+      friction: "normal",
+      capacity: clean.seats,
+      bEffOverride: 0,
+      choices: { ...clean },
+    };
+  }
+  const dish = selectedDishes[0];
+  const course = courseOf(dish);
+  const fit: CuisineFit = tasteFor(region, dish.ingredient);
   const mixedRegions = clean.regions.length > 1;
   const mixedDishes = selectedDishes.length > 1;
   const mixedWealth = wealthItems.length > 1;

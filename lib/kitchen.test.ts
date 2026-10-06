@@ -26,7 +26,14 @@ describe("kitchen slip", () => {
     ]);
     expect(dishesFor("wheat").every((dish) => dish.ingredient === "wheat")).toBe(true);
     const switched = sanitizeChoices({ ...exampleChoices(), ingredients: ["wheat"], dishes: ["shellfish-stew"] });
-    expect(switched?.dishes).toEqual(["day-loaf"]);
+    expect(switched?.dishes).toEqual([]);
+    const baked = sanitizeChoices({
+      ...exampleChoices(),
+      ingredients: ["wheat"],
+      dishes: ["day-loaf"],
+      appliances: ["oven"],
+    });
+    expect(baked?.dishes).toEqual(["day-loaf"]);
   });
 
   it("lets wealth, the roll, rivals, the week, and a conflict each change the count", () => {
@@ -47,6 +54,7 @@ describe("kitchen slip", () => {
       ingredients: ["cheese"],
       dishes: ["toasted-cheese"],
       wealths: ["rich"],
+      appliances: ["countertop"],
     });
     expect(tavern.menuTier).toBe(3);
     expect(
@@ -56,6 +64,7 @@ describe("kitchen slip", () => {
         ingredients: ["cheese"],
         dishes: ["toasted-cheese"],
         wealths: ["rich"],
+        appliances: ["countertop"],
       }).priceNote,
     ).toMatch(/Exclusivity/);
     const fine = kitchenCount({
@@ -63,6 +72,7 @@ describe("kitchen slip", () => {
       regions: ["vin"],
       ingredients: ["cheese"],
       dishes: ["cheese-board"],
+      appliances: ["ice"],
       wealths: ["rich"],
       rivals: 0,
       week: "yes",
@@ -98,11 +108,19 @@ describe("kitchen slip", () => {
     const secondRegion = kitchenCount({ ...exampleChoices(), regions: ["port", "fast-food"] });
     expect(secondRegion.bEff).not.toBe(base.bEff);
     expect(secondRegion.interest).not.toBe(base.interest);
-    const secondDish = kitchenCount({ ...exampleChoices(), dishes: ["shellfish-stew", "fried-prawns"] });
+    const secondDish = kitchenCount({
+      ...exampleChoices(),
+      appliances: ["stove", "fryer"],
+      dishes: ["shellfish-stew", "fried-prawns"],
+    });
     expect(secondDish.fService).toBe(1.1);
     expect(secondDish.mPrice).toBe(1.13);
     expect(secondDish.interest).not.toBe(base.interest);
-    const platter = kitchenCount({ ...exampleChoices(), dishes: ["shellfish-stew", "shellfish-platter"] });
+    const platter = kitchenCount({
+      ...exampleChoices(),
+      appliances: ["stove", "ice"],
+      dishes: ["shellfish-stew", "shellfish-platter"],
+    });
     expect(platter.priceNote).toMatch(/Scam/);
     expect(platter.mPrice).toBe(0.53);
   });
@@ -115,5 +133,33 @@ describe("kitchen slip", () => {
     expect(both.interest).toBeLessThan(shaken.interest);
     const quiet = sanitizeChoices({ ...exampleChoices(), conflicts: ["none", "riot"] });
     expect(quiet?.conflicts).toEqual(["riot"]);
+  });
+
+  it("limits the book to the appliances on hand and the recipes the roll can hold", () => {
+    const stoveOnly = sanitizeChoices({
+      ...exampleChoices(),
+      appliances: ["stove"],
+      dishes: ["shellfish-stew", "fried-prawns", "shellfish-platter"],
+    });
+    expect(stoveOnly?.dishes).toEqual(["shellfish-stew"]);
+    const equipped = sanitizeChoices({
+      ...exampleChoices(),
+      appliances: ["stove", "fryer", "ice", "larder"],
+      dishes: ["shellfish-stew", "fried-prawns", "shellfish-platter"],
+    });
+    expect(equipped?.dishes).toEqual(["shellfish-stew", "fried-prawns", "shellfish-platter"]);
+    const crowded = sanitizeChoices({
+      ...exampleChoices(),
+      appliances: ["stove", "oven", "fryer", "ice", "larder", "countertop"],
+      ingredients: ["shellfish", "wheat", "cheese"],
+      dishes: ["shellfish-stew", "fried-prawns", "shellfish-platter", "day-loaf", "sunday-loaf", "cheese-board"],
+      roll: 8,
+    });
+    expect(crowded?.dishes).toEqual(["shellfish-stew"]);
+    const dark = sanitizeChoices({ ...exampleChoices(), appliances: [] });
+    expect(dark?.dishes).toEqual([]);
+    expect(kitchenCount(dark!).served).toBe(0);
+    expect(kitchenCount(dark!).interest).toBe(0);
+    expect(kitchenCount(exampleChoices()).interest).toBe(5821);
   });
 });
