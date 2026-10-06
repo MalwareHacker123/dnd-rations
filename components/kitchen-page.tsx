@@ -403,10 +403,10 @@ export function KitchenPage() {
             />
           </Field>
 
-          <Field label="Regions" hint="Tick every crowd this kitchen is feeding.">
+          <Field label="Regions" hint="Tick every crowd. A poor street ignores a name. A rich street follows it.">
             <MultiPick
               label="Regions"
-              options={REGION_ORDER.map((id) => ({ id, label: REGIONS[id].name }))}
+              options={REGION_ORDER.map((id) => ({ id, label: REGIONS[id].name, detail: REGIONS[id].fameNote }))}
               selected={choices.regions}
               onToggle={onRegions}
             />
@@ -423,7 +423,7 @@ export function KitchenPage() {
             </Field>
             <Field
               label="Reputation"
-              hint="A blank box counts as 0. A high name fills the street. Seats still cap who you serve. Up to 20."
+              hint="A blank box counts as 0. Poor regions barely care. Rich regions pack the door. Seats still cap who you serve. Up to 20."
             >
               <NumberBox
                 label="Reputation"

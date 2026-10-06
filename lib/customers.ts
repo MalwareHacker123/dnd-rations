@@ -48,6 +48,8 @@ export type House = {
   systemValue?: number;
   /** Name recognition, 0–20. Above 0 it multiplies how many people come, unless a slump is in effect. */
   reputationBonus?: number;
+  /** When several regions are selected, how hard those streets chase a name. */
+  fameCare?: number;
   /** Averaged cuisine multiplier when more than one dish or region is selected. */
   cuisineValue?: number;
   /** Averaged price multiplier when more than one dish, region, or wealth tier is selected. */
@@ -125,6 +127,9 @@ export type Region = {
   crMax: number;
   districtTier: number;
   reality: string;
+  /** How hard this street chases a name. Poor streets stay near 0. Port District is 1. Vin Region is 3. */
+  fameCare: number;
+  fameNote: string;
   systems: SystemOption[];
 };
 
@@ -147,6 +152,8 @@ export const REGIONS: Record<RegionId, Region> = {
     crMax: 0.2,
     districtTier: 6,
     reality: "Reservations and exclusivity filter out most of the people who walk by.",
+    fameCare: 3,
+    fameNote: "Richest street. The name is why they come.",
     systems: [NEUTRAL],
   },
   mi: {
@@ -160,6 +167,8 @@ export const REGIONS: Record<RegionId, Region> = {
     crMax: 0.6,
     districtTier: 4,
     reality: "A sit-down meal. People commit once they like the board.",
+    fameCare: 2.2,
+    fameNote: "Upper-mid. A known kitchen fills the tables.",
     systems: [NEUTRAL],
   },
   pomodoro: {
@@ -173,6 +182,8 @@ export const REGIONS: Record<RegionId, Region> = {
     crMax: 0.6,
     districtTier: 3,
     reality: "A sit-down meal. A bad cook's name sticks for days.",
+    fameCare: 1.7,
+    fameNote: "Middle. People talk, and the name travels.",
     systems: [NEUTRAL],
   },
   scones: {
@@ -186,6 +197,8 @@ export const REGIONS: Record<RegionId, Region> = {
     crMax: 0.5,
     districtTier: 3,
     reality: "Factional distrust keeps casual visitors outside.",
+    fameCare: 1.25,
+    fameNote: "Lower-mid. A name helps, after the factions.",
     systems: [
       {
         id: "mega-corp",
@@ -212,6 +225,8 @@ export const REGIONS: Record<RegionId, Region> = {
     crMax: 0.75,
     districtTier: 2,
     reality: "Street dining. People decide quickly.",
+    fameCare: 0.55,
+    fameNote: "Lower. Most people buy what is cheap.",
     systems: [
       {
         id: "cartel-paid",
@@ -238,6 +253,8 @@ export const REGIONS: Record<RegionId, Region> = {
     crMax: 0.75,
     districtTier: 2,
     reality: "High-volume street dining. A menu above tier 3 looks like a scam.",
+    fameCare: 1,
+    fameNote: "Lower-mid. A name fills the wharf.",
     systems: [NEUTRAL],
   },
   "fast-food": {
@@ -251,6 +268,8 @@ export const REGIONS: Record<RegionId, Region> = {
     crMax: 0.95,
     districtTier: 1,
     reality: "Impulse buying. A sponsored hype week can fill the counter.",
+    fameCare: 0.35,
+    fameNote: "Poorest. Almost nobody comes for the name.",
     systems: [
       {
         id: "hype",
@@ -494,10 +513,16 @@ export function reputationMultiplier(
   return { value: roundTo(0.5 + checkTotal / 20, 2), note: null };
 }
 
-/** How hard a known name pulls people to the door. Zero leaves the worksheet untouched. */
-export function famePull(reputation: number): number {
-  if (!(reputation > 0)) return 1;
-  return roundTo(Math.exp(reputation / 6), 4);
+/** How hard a known name pulls people to the door. Zero leaves the worksheet untouched. Care is 1 in Port District, lower on a poor street, higher on a rich one. */
+export function famePull(reputation: number, care = 1): number {
+  if (!(reputation > 0) || !(care > 0)) return 1;
+  return roundTo(Math.exp((reputation / 6) * care), 4);
+}
+
+export function fameCareNote(care: number): string {
+  if (care < 0.7) return "barely chases a name.";
+  if (care < 1.4) return "notices a name, then looks at the price.";
+  return "comes out for the name.";
 }
 
 function serviceValue(service: ServiceStyle): number {
@@ -556,9 +581,10 @@ export function calculateHouse(house: House): HouseMath {
     typeof house.reputationValue === "number"
       ? { value: house.reputationValue, note: house.reputationNote ?? null }
       : rolled;
+  const care = typeof house.fameCare === "number" ? house.fameCare : region.fameCare;
   const fame =
     !rep.note && typeof house.reputationBonus === "number" && house.reputationBonus > 0
-      ? famePull(house.reputationBonus)
+      ? famePull(house.reputationBonus, care)
       : 1;
   const ingredient = house.favoredIngredient ? 1 : 0;
   const dish = house.wantedDish ? 1 : 0;
@@ -598,6 +624,9 @@ export function calculateHouse(house: House): HouseMath {
   const served = Math.min(house.capacity, Math.max(0, attracted));
   const turnedAway = Math.max(0, attracted - served);
   const copy = headlineFor(served, attracted, house.capacity, fame);
+  if (fame > 1) {
+    copy.detail = `${copy.detail} ${region.name} ${fameCareNote(care)} A name of ${house.reputationBonus} brings ${formatFixed(fame, 2)} times the crowd.`;
+  }
   const cuisineLabel = house.cuisineName.trim() || "Cuisine";
   const ingredientLabel = house.ingredientName.trim() || "Favored ingredient";
   const dishLabel = house.dishName.trim() || "Wanted dish";
@@ -632,7 +661,7 @@ export function calculateHouse(house: House): HouseMath {
       effect: rep.note
         ? rep.note
         : fame > 1
-          ? `The roll sets reputation ${formatFixed(rep.value, 2)}. A name of ${house.reputationBonus} pulls ${formatFixed(fame, 2)} times as many people to the door.`
+          ? `The roll sets reputation ${formatFixed(rep.value, 2)}. ${region.name} ${fameCareNote(care)} A name of ${house.reputationBonus} brings ${formatFixed(fame, 2)} times the crowd.`
           : `Reputation ${formatFixed(rep.value, 2)} adds ${formatFixed(weights.rep, 3)} to appeal`,
     },
     {

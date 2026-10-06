@@ -354,6 +354,7 @@ export function toHouse(choices: KitchenChoices): House {
           ),
           lambdaOverride: roundTo(mean(clean.regions.map((id) => REGIONS[id].lambda)), 4),
           crMaxOverride: roundTo(mean(clean.regions.map((id) => REGIONS[id].crMax)), 4),
+          fameCare: roundTo(mean(clean.regions.map((id) => REGIONS[id].fameCare)), 2),
         }
       : {}),
     ...(slump && region !== "pomodoro"
@@ -396,7 +397,8 @@ export function kitchenCount(choices: KitchenChoices) {
   const served = Math.min(clean.seats, Math.max(0, attracted));
   const turnedAway = Math.max(0, attracted - served);
   const slump = clean.regions.includes("pomodoro") && clean.roll < 10;
-  const fame = slump ? 1 : famePull(clean.reputation);
+  const care = roundTo(mean(clean.regions.map((id) => REGIONS[id].fameCare)), 2);
+  const fame = slump ? 1 : famePull(clean.reputation, care);
   const packed = fame >= 2 && served === clean.seats && turnedAway > 0;
   const headline = packed
     ? "The name packs the street."

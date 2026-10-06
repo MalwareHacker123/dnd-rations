@@ -44,6 +44,20 @@ describe("customer equation", () => {
     expect(famous.attracted).toBe(Math.floor(roundTo(famous.interest * famous.cr, 4)));
     expect(famous.served).toBe(300);
     expect(famous.headline).toBe("The name packs the street.");
+    expect(famous.detail).toMatch(/Port District notices a name/);
+    const lift = (region: "fast-food" | "pimiento" | "port" | "scones" | "pomodoro" | "mi" | "vin") => {
+      const plain = calculateHouse({ ...exampleHouse(), region });
+      const named = calculateHouse({ ...exampleHouse(), region, reputationBonus: 10 });
+      return named.interest / plain.interest;
+    };
+    expect(lift("fast-food")).toBeLessThan(lift("pimiento"));
+    expect(lift("pimiento")).toBeLessThan(lift("port"));
+    expect(lift("port")).toBeLessThan(lift("scones"));
+    expect(lift("scones")).toBeLessThan(lift("pomodoro"));
+    expect(lift("pomodoro")).toBeLessThan(lift("mi"));
+    expect(lift("mi")).toBeLessThan(lift("vin"));
+    expect(famePull(10, REGIONS["fast-food"].fameCare)).toBeLessThan(2);
+    expect(famePull(10, REGIONS.vin.fameCare)).toBeGreaterThan(100);
     const slumped = calculateHouse({
       ...exampleHouse(),
       region: "pomodoro",

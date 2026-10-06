@@ -53,7 +53,7 @@ The count is `min(seats, floor(interested × conversion))`.
 - Cuisine, service, backing, and friction are checkboxes too. One box in each group stays on, and the panel lists the exact factor it contributes.
 - Port District scores a menu above tier 3 as 0.10. Vin Region scores a menu under tier 5 as 0.05.
 - In Pomodoro, a check under 10 sets reputation to 0.20 for 1d6 days. That slump ignores the name.
-- A reputation of 0 leaves the crowd alone, which is how the Port night stays at 5,821 interested. Each point above that multiplies interested people, and the people who come to the door, by e^(reputation / 6). Seats still cap who gets served.
+- A reputation of 0 leaves the crowd alone, which is how the Port night stays at 5,821 interested. Above that, the crowd is multiplied by e^((reputation / 6) × how much the region cares). Fast Food is 0.35, Pimiento 0.55, Port District 1, Scones 1.25, Pomodoro 1.70, Mi Region 2.20, and Vin Region 3. A poor street barely notices a name. A rich street comes out for it. Seats still cap who gets served.
 - Market decay is `e^(−λ × competitors)` times the regional system multiplier.
 - Conversion follows the logistic curve. The sheet keeps the first four decimals of that curve, which is how the Port bistro lands on 58.16%. Grab-and-go can push conversion past 100%.
 

@@ -70,6 +70,19 @@ describe("kitchen slip", () => {
     expect(slumped.attracted).toBe(quiet.attracted);
   });
 
+  it("lets a poor street ignore a name that a rich street chases", () => {
+    const lift = (regions: ("fast-food" | "port" | "vin")[]) => {
+      const plain = kitchenCount({ ...exampleChoices(), regions, reputation: 0 });
+      const named = kitchenCount({ ...exampleChoices(), regions, reputation: 10 });
+      return named.interest / Math.max(1, plain.interest);
+    };
+    expect(lift(["fast-food"])).toBeLessThan(2);
+    expect(lift(["port"])).toBeGreaterThan(5);
+    expect(lift(["vin"])).toBeGreaterThan(lift(["port"]) * 10);
+    expect(kitchenCount({ ...exampleChoices(), regions: ["fast-food"], reputation: 10 }).detail).toMatch(/barely chases a name/);
+    expect(kitchenCount({ ...exampleChoices(), regions: ["vin"], reputation: 10 }).detail).toMatch(/comes out for the name/);
+  });
+
   it("keeps a rich kitchen out of Vin unless the dish is fine", () => {
     const tavern = toHouse({
       ...exampleChoices(),
