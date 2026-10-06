@@ -27,3 +27,16 @@ export function plural(count: number, singular: string, pluralForm?: string): st
   const word = count === 1 ? singular : (pluralForm ?? `${singular}s`);
   return `${formatNumber(count)} ${word}`;
 }
+
+export function formatCount(value: number): string {
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(Math.round(value));
+}
+
+export function formatFixed(value: number, digits: number): string {
+  const scale = 10 ** digits;
+  return (Math.round(value * scale) / scale).toFixed(digits);
+}
+
+export function formatPercent(value: number): string {
+  return `${formatFixed(value * 100, 2)}%`;
+}

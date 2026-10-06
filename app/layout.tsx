@@ -15,7 +15,7 @@ const heading = Fraunces({
 export const metadata: Metadata = {
   title: "Quartermaster",
   description:
-    "Check off food, water, feed, and gear, then see the weight, cost, and carrying capacity for a fifth-edition party.",
+    "Count restaurant customers from foot traffic and food appeal, and check food, water, and gear for a fifth-edition trip. Named sheets download as a file.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

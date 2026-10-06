@@ -1,8 +1,14 @@
 # Quartermaster
 
-A checklist for food, water, feed, and gear on a fifth-edition trip. Tick who is eating, which animals are in harness, and what goes in the packs. The ledger totals the weight, the coin, and whether a cart, a mule, or the party can carry it.
+Two sheets for the same table.
 
-The sample trip is four people, one mule, a cart, and fourteen days of rations and water.
+**Customers** runs the master customer equation: effective foot traffic, food appeal, market decay, and a logistic conversion rate, capped by the number of seats. The sample house is an Italian seafood bistro in the Port District: 5,821 interested, 58.16% conversion, 300 seated, and 3,085 turned away.
+
+**Supplies** is a checklist for food, water, feed, and gear on a fifth-edition trip. Tick who is eating, which animals are in harness, and what goes in the packs. The ledger totals the weight, the coin, and whether a cart, a mule, or the party can carry it. The sample trip is four people, one mule, a cart, and fourteen days of rations and water.
+
+## Save box
+
+Save names a sheet in this browser. That sheet stores the restaurant and the supply list together. Download writes a JSON file. Drop that file in Dropbox, Drive, or any folder, then load it on another machine with **Load file**.
 
 ## Run it locally
 
@@ -18,7 +24,7 @@ npm test
 npm run build
 ```
 
-`npm run build` writes a static site to `out/`. The sheet is saved in this browser only.
+`npm run build` writes a static site to `out/`. The live sheet and the named list stay in this browser. A downloaded JSON file is the copy you can keep in Dropbox.
 
 ## Put it on GitHub Pages
 
@@ -29,7 +35,20 @@ npm run build
 
 A project site is served at `https://<user>.github.io/<repository>/`. A user site (`<user>.github.io`) is served at the root. The workflow sets that path for you.
 
-## What the ledger uses
+## What the customer count uses
+
+The count is `min(seats, floor(interested × conversion))`.
+
+- Effective foot traffic is the published regional curve, not a fresh logarithm. Vin is 782, Port District is 5,320, Fast Food is 6,293.
+- Food appeal is 0.35 cuisine + 0.30 price + 0.20 reputation + 0.15 weekly trend, then squared.
+- Port District scores a menu above tier 3 as 0.10. Vin Region scores a menu under tier 5 as 0.05.
+- In Pomodoro, a check under 10 sets reputation to 0.20 for 1d6 days.
+- Market decay is `e^(−λ × competitors)` times the regional system multiplier.
+- Conversion follows the logistic curve. The sheet keeps the first four decimals of that curve, which is how the Port bistro lands on 58.16%. Grab-and-go can push conversion past 100%.
+
+District target tiers other than Port District (tier 2) are suggested starting points. Change them when the street aims higher or lower.
+
+## What the supply ledger uses
 
 - Food: 1 lb a person each day. Half a pound counts as half a day without food. Rations are a 2 lb pack at 5 sp.
 - Water: 1 gallon a day, or 2 in hot weather. A gallon weighs 8 lb. A waterskin holds 4 pints and weighs 5 lb full.

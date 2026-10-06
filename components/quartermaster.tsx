@@ -2,6 +2,8 @@
 
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { Minus, Plus, Printer, RotateCcw } from "lucide-react";
+import { CustomerBoard } from "@/components/customer-sheet";
+import { SaveBox } from "@/components/save-box";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -9,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { LedgerPanel } from "@/components/ledger-panel";
+import { calculateHouse, exampleHouse } from "@/lib/customers";
+import { getHouseSnapshot, getServerHouseSnapshot, setHouseSnapshot, subscribeHouse } from "@/lib/house-store";
 import {
   FOOD_PLANS,
   GEAR_GROUPS,
@@ -20,7 +24,7 @@ import {
   WATER_PACKS,
   sampleTrip,
 } from "@/lib/catalog";
-import { formatCoins, formatLb, plural } from "@/lib/format";
+import { formatCoins, formatCount, formatLb, formatPercent, plural } from "@/lib/format";
 import { calculate } from "@/lib/ledger";
 import { getServerTripSnapshot, getTripSnapshot, setTripSnapshot, subscribeTrip } from "@/lib/storage";
 import type { GearItem, MountId, Person, Trip, VehicleId } from "@/lib/types";
@@ -160,9 +164,12 @@ function SwitchRow({
 
 export function Quartermaster() {
   const trip = useSyncExternalStore(subscribeTrip, getTripSnapshot, getServerTripSnapshot);
+  const house = useSyncExternalStore(subscribeHouse, getHouseSnapshot, getServerHouseSnapshot);
+  const [view, setView] = useState<"customers" | "supplies">("customers");
   const [custom, setCustom] = useState({ name: "", weight: "", cost: "" });
   const [customError, setCustomError] = useState("");
   const ledger = useMemo(() => calculate(trip), [trip]);
+  const houseMath = useMemo(() => calculateHouse(house), [house]);
 
   function patch(partial: Partial<Trip>) {
     setTripSnapshot({ ...trip, ...partial });
@@ -228,15 +235,22 @@ export function Quartermaster() {
             Quartermaster
           </h1>
           <p className="mt-3 text-base leading-7 text-muted-foreground">
-            Check who is coming, what they eat, and what goes in the packs. The ledger adds the
-            weight, the coin, and whether the cart can hold it.
+            Count who will pay for a table, then check the packs for the road. A named sheet keeps both, and a
+            downloaded file can sit in Dropbox.
           </p>
         </div>
         <div className="no-print flex flex-wrap gap-2">
-          <Button type="button" variant="outline" onClick={() => setTripSnapshot(sampleTrip())}>
-            <RotateCcw />
-            Sample party
-          </Button>
+          {view === "customers" ? (
+            <Button type="button" variant="outline" onClick={() => setHouseSnapshot(exampleHouse())}>
+              <RotateCcw />
+              Sample bistro
+            </Button>
+          ) : (
+            <Button type="button" variant="outline" onClick={() => setTripSnapshot(sampleTrip())}>
+              <RotateCcw />
+              Sample party
+            </Button>
+          )}
           <Button type="button" variant="outline" onClick={() => window.print()}>
             <Printer />
             Print
@@ -244,6 +258,32 @@ export function Quartermaster() {
         </div>
       </header>
 
+      <SaveBox />
+
+      <div className="no-print mb-6 flex flex-wrap gap-2" role="tablist" aria-label="Sheets">
+        <Button
+          type="button"
+          role="tab"
+          aria-selected={view === "customers"}
+          variant={view === "customers" ? "default" : "outline"}
+          onClick={() => setView("customers")}
+        >
+          Customers
+        </Button>
+        <Button
+          type="button"
+          role="tab"
+          aria-selected={view === "supplies"}
+          variant={view === "supplies" ? "default" : "outline"}
+          onClick={() => setView("supplies")}
+        >
+          Supplies
+        </Button>
+      </div>
+
+      {view === "customers" ? (
+        <CustomerBoard />
+      ) : (
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="no-print order-2 space-y-6 lg:order-1">
           <Section
@@ -640,17 +680,33 @@ export function Quartermaster() {
           <LedgerPanel trip={trip} ledger={ledger} />
         </div>
       </div>
+      )}
 
-      <a
-        href="#ledger"
-        className="no-print fixed inset-x-0 bottom-0 z-20 flex items-center justify-between border-t bg-card/95 px-4 py-3 backdrop-blur lg:hidden"
-      >
-        <span className="font-heading text-lg font-semibold tabular-nums">{formatLb(ledger.totals.weightLb)}</span>
-        <span className="text-sm tabular-nums">{formatCoins(ledger.totals.costCp)}</span>
-      </a>
+      {view === "customers" ? (
+        <a
+          href="#house"
+          className="no-print fixed inset-x-0 bottom-0 z-20 flex items-center justify-between border-t bg-card/95 px-4 py-3 backdrop-blur lg:hidden"
+        >
+          <span data-testid="mobile-served" className="font-heading text-lg font-semibold tabular-nums">
+            {formatCount(houseMath.served)} served
+          </span>
+          <span className="text-sm tabular-nums">{formatPercent(houseMath.cr)}</span>
+        </a>
+      ) : (
+        <a
+          href="#ledger"
+          className="no-print fixed inset-x-0 bottom-0 z-20 flex items-center justify-between border-t bg-card/95 px-4 py-3 backdrop-blur lg:hidden"
+        >
+          <span className="font-heading text-lg font-semibold tabular-nums">{formatLb(ledger.totals.weightLb)}</span>
+          <span className="text-sm tabular-nums">{formatCoins(ledger.totals.costCp)}</span>
+        </a>
+      )}
 
       <footer className="mt-10 max-w-3xl space-y-2 text-xs leading-5 text-muted-foreground">
-        <p>Quartermaster is compatible with fifth edition. The sheet stays in this browser.</p>
+        <p>
+          Quartermaster is compatible with fifth edition. Named sheets stay in this browser. Download a file if you
+          want a copy in Dropbox or another folder.
+        </p>
         <p>
           This work includes material taken from the System Reference Document 5.1 (“SRD 5.1”) by
           Wizards of the Coast LLC and available at{" "}
