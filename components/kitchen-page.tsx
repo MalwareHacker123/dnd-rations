@@ -41,11 +41,13 @@ function NumberBox({
   value,
   max,
   onValue,
+  emptyOnBlur = false,
 }: {
   label: string;
   value: number;
   max: number;
   onValue: (next: number) => void;
+  emptyOnBlur?: boolean;
 }) {
   const [text, setText] = useState(value === 0 ? "" : String(value));
   const [seen, setSeen] = useState(value);
@@ -62,17 +64,20 @@ function NumberBox({
       autoComplete="off"
       aria-label={label}
       value={text}
+      onBlur={() => {
+        if (emptyOnBlur && text === "") onValue(0);
+      }}
       onChange={(event) => {
         const digits = event.target.value.replace(/\D/g, "");
         if (digits === "" || /^0+$/.test(digits)) {
           setText("");
-          onValue(0);
+          if (!emptyOnBlur) onValue(0);
           return;
         }
         const next = parseBound(digits, 0, max);
         if (next === null || next === 0) {
           setText("");
-          onValue(0);
+          if (!emptyOnBlur) onValue(0);
           return;
         }
         setText(String(next));
@@ -362,6 +367,7 @@ export function KitchenPage() {
               label="Menu size"
               value={choices.menuSize}
               max={40}
+              emptyOnBlur
               onValue={(menuSize) => patch({ menuSize })}
             />
           </Field>
