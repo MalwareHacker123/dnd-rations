@@ -12,6 +12,7 @@ import {
   type RegionId,
   type ServiceStyle,
 } from "@/lib/customers";
+import { formatCount } from "@/lib/format";
 import {
   DISHES,
   INGREDIENTS,
@@ -235,6 +236,20 @@ function serviceOf(service: ServiceStyle): number {
   return SERVICES.find((item) => item.id === service)?.value ?? 1;
 }
 
+function fitForDish(region: RegionId, ingredients: readonly string[]): CuisineFit {
+  let best: CuisineFit = "neutral";
+  let bestValue = -1;
+  for (const id of ingredients) {
+    const fit = tasteFor(region, id);
+    const value = cuisineMultiplier(region, fit);
+    if (value > bestValue) {
+      best = fit;
+      bestValue = value;
+    }
+  }
+  return best;
+}
+
 export function toHouse(choices: KitchenChoices): House {
   const clean = sanitizeChoices(choices) ?? exampleChoices();
   const selectedDishes = clean.dishes
@@ -282,7 +297,7 @@ export function toHouse(choices: KitchenChoices): House {
   }
   const dish = selectedDishes[0];
   const course = courseOf(dish);
-  const fit: CuisineFit = tasteFor(region, dish.ingredient);
+  const fit: CuisineFit = fitForDish(region, dish.ingredients);
   const mixedRegions = clean.regions.length > 1;
   const mixedDishes = selectedDishes.length > 1;
   const mixedWealth = wealthItems.length > 1;
@@ -291,7 +306,7 @@ export function toHouse(choices: KitchenChoices): House {
   for (const plate of selectedDishes) {
     const plateCourse = courseOf(plate);
     for (const regionId of clean.regions) {
-      cuisineSamples.push(cuisineMultiplier(regionId, tasteFor(regionId, plate.ingredient)));
+      cuisineSamples.push(cuisineMultiplier(regionId, fitForDish(regionId, plate.ingredients)));
       for (const band of wealthItems) {
         priceSamples.push(priceMultiplier(regionId, plateCourse.menuTier, band.district));
       }
@@ -364,7 +379,38 @@ export function toHouse(choices: KitchenChoices): House {
 }
 
 export function kitchenCount(choices: KitchenChoices) {
-  return calculateHouse(toHouse(choices));
+  const clean = sanitizeChoices(choices) ?? exampleChoices();
+  if (clean.dishes.length === 0) {
+    const quiet = calculateHouse(toHouse(clean));
+    return {
+      ...quiet,
+      interest: 0,
+      attracted: 0,
+      served: 0,
+      turnedAway: 0,
+      cr: 0,
+      headline: "Nothing is on the fire.",
+      detail: "This kitchen cannot cook a dish from the book tonight.",
+    };
+  }
+  if (clean.dishes.length === 1 && clean.ingredients.length <= 1) {
+    return calculateHouse(toHouse(clean));
+  }
+  const parts = clean.dishes.map((id) => calculateHouse(toHouse({ ...clean, dishes: [id] })));
+  const primary = parts[0];
+  const dishInterest = parts.slice(1).reduce((sum, part) => sum + Math.max(1, part.interest), primary.interest);
+  const extraIngredients = Math.max(0, clean.ingredients.length - 1);
+  const bonus = extraIngredients * Math.max(1, Math.round(primary.interest * 0.05));
+  const interest = dishInterest + bonus;
+  const attracted = Math.floor(roundTo(interest * primary.cr, 4));
+  const served = Math.min(clean.seats, Math.max(0, attracted));
+  const turnedAway = Math.max(0, attracted - served);
+  const headline = served === clean.seats && turnedAway > 0 ? "Fully booked." : attracted === 0 ? "The street walks past." : "There is still room.";
+  const detail =
+    turnedAway > 0
+      ? `${formatCount(served)} paying customers. ${formatCount(turnedAway)} turned away.`
+      : `${formatCount(served)} paying customers. A longer menu brings a bigger crowd.`;
+  return { ...primary, interest, attracted, served, turnedAway, headline, detail };
 }
 
 export function rollLine(roll: number, regions: readonly RegionId[]): string {

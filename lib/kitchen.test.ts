@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dishesFor } from "@/lib/pantry";
+import { dishesFor, dishesForIngredients } from "@/lib/pantry";
 import { exampleChoices, kitchenCount, sanitizeChoices, toHouse } from "@/lib/kitchen";
 
 describe("kitchen slip", () => {
@@ -24,7 +24,7 @@ describe("kitchen slip", () => {
       "Fried prawns",
       "Shellfish platter",
     ]);
-    expect(dishesFor("wheat").every((dish) => dish.ingredient === "wheat")).toBe(true);
+    expect(dishesFor("wheat").every((dish) => dish.ingredients.length === 1 && dish.ingredients[0] === "wheat")).toBe(true);
     const switched = sanitizeChoices({ ...exampleChoices(), ingredients: ["wheat"], dishes: ["shellfish-stew"] });
     expect(switched?.dishes).toEqual([]);
     const baked = sanitizeChoices({
@@ -113,16 +113,21 @@ describe("kitchen slip", () => {
       appliances: ["stove", "fryer"],
       dishes: ["shellfish-stew", "fried-prawns"],
     });
-    expect(secondDish.fService).toBe(1.1);
-    expect(secondDish.mPrice).toBe(1.13);
-    expect(secondDish.interest).not.toBe(base.interest);
+    expect(secondDish.interest).toBeGreaterThan(base.interest);
+    expect(secondDish.attracted).toBeGreaterThan(base.attracted);
+    const weakExtra = kitchenCount({
+      ...exampleChoices(),
+      ingredients: ["shellfish", "hardtack"],
+      dishes: ["shellfish-stew", "hardtack-supper"],
+    });
+    expect(weakExtra.interest).toBeGreaterThan(base.interest);
     const platter = kitchenCount({
       ...exampleChoices(),
-      appliances: ["stove", "ice"],
-      dishes: ["shellfish-stew", "shellfish-platter"],
+      appliances: ["ice"],
+      dishes: ["shellfish-platter"],
     });
     expect(platter.priceNote).toMatch(/Scam/);
-    expect(platter.mPrice).toBe(0.53);
+    expect(platter.mPrice).toBe(0.1);
   });
 
   it("multiplies two conflicts, and nothing going on does not sit beside another", () => {
@@ -161,5 +166,22 @@ describe("kitchen slip", () => {
     expect(kitchenCount(dark!).served).toBe(0);
     expect(kitchenCount(dark!).interest).toBe(0);
     expect(kitchenCount(exampleChoices()).interest).toBe(5821);
+  });
+
+  it("adds a combined recipe when every ingredient is on hand, and more food brings more people", () => {
+    expect(dishesForIngredients(["wheat"]).some((dish) => dish.id === "wine-bread")).toBe(false);
+    const book = dishesForIngredients(["wheat", "wine"]);
+    expect(book.some((dish) => dish.id === "wine-bread" && dish.ingredients.length === 2)).toBe(true);
+    const base = kitchenCount(exampleChoices());
+    const withWheat = kitchenCount({ ...exampleChoices(), ingredients: ["shellfish", "wheat"] });
+    expect(withWheat.interest).toBeGreaterThan(base.interest);
+    const wineBread = kitchenCount({
+      ...exampleChoices(),
+      ingredients: ["wheat", "wine"],
+      dishes: ["wine-bread"],
+      appliances: ["oven"],
+    });
+    expect(wineBread.interest).toBeGreaterThan(0);
+    expect(wineBread.served).toBeGreaterThan(0);
   });
 });

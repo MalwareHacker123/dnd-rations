@@ -211,7 +211,7 @@ export function KitchenPage() {
     const allowed = new Set(ingredients);
     let nextDishes = choices.dishes.filter((dishId) => {
       const dish = DISHES.find((item) => item.id === dishId);
-      return dish ? allowed.has(dish.ingredient) : false;
+      return dish ? dish.ingredients.every((item) => allowed.has(item)) : false;
     });
     if (nextDishes.length === 0) {
       const first = dishesForIngredients(ingredients).find((dish) => choices.appliances.includes(dish.appliance));
@@ -318,28 +318,47 @@ export function KitchenPage() {
         <p className="text-xs font-medium tracking-[0.18em] text-primary uppercase">Service tonight</p>
         <h1 className="mt-2 font-heading text-4xl font-semibold tracking-tight sm:text-5xl">The Kitchen</h1>
         <p className="mt-3 max-w-xl text-base leading-7 text-muted-foreground">
-          Tick the equipment in the kitchen. That decides which dishes from the book you can run, and how many.
+          Tick what is in the kitchen, then the food. A dish such as wine bread needs wheat and wine. A longer menu brings more people.
         </p>
       </header>
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <form className="space-y-4 rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5" onSubmit={(event) => event.preventDefault()}>
-          <Field label="Ingredients" hint="Tick everything in the pot. The dish list follows these.">
+          <fieldset className="space-y-3" data-testid="kitchen-gear">
+            <legend className="text-sm font-medium">What is in this kitchen?</legend>
+            <p className="text-xs leading-5 text-muted-foreground">
+              Tick every large piece you have. These boxes are the stove, the fryer, the oven, and the storage.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {APPLIANCES.map((item) => {
+                const on = choices.appliances.includes(item.id);
+                return (
+                  <label
+                    key={item.id}
+                    className={`flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border px-3 py-2.5 ${on ? "border-primary bg-primary/5" : "border-input bg-card"}`}
+                  >
+                    <Checkbox
+                      className="mt-0.5"
+                      aria-label={item.label}
+                      checked={on}
+                      onCheckedChange={(value) => onAppliances(item.id, value === true)}
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium">{item.label}</span>
+                      <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">{item.detail}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+
+          <Field label="Ingredients" hint="Tick everything in the pot. New dishes show up when you have every ingredient they use.">
             <MultiPick
               label="Ingredients"
               options={INGREDIENTS.map((item) => ({ id: item.id, label: item.name }))}
               selected={choices.ingredients}
               onToggle={onIngredients}
-            />
-          </Field>
-
-          <Field label="Your kitchen" hint="Tick the large equipment you actually have. A blank kitchen cannot cook.">
-            <MultiPick
-              label="Your kitchen"
-              emptyLabel="Nothing in this kitchen"
-              options={APPLIANCES.map((item) => ({ id: item.id, label: item.label, detail: item.detail }))}
-              selected={choices.appliances}
-              onToggle={onAppliances}
             />
           </Field>
 
@@ -352,14 +371,20 @@ export function KitchenPage() {
                 const owned = choices.appliances.includes(item.appliance);
                 const selected = choices.dishes.includes(item.id);
                 const full = !selected && choices.dishes.length >= limit;
+                const recipe =
+                  item.ingredients.length > 1
+                    ? item.ingredients.map((id) => INGREDIENTS.find((food) => food.id === id)?.name ?? id).join(" + ")
+                    : "";
+                const lock = owned
+                  ? full
+                    ? `This kitchen can run ${limit === 1 ? "1 dish" : `${limit} dishes`}.`
+                    : ""
+                  : `Needs ${appliance ? appliance.label.toLowerCase() : "more equipment"}.`;
+                const detail = [recipe, lock].filter(Boolean).join(". ");
                 return {
                   id: item.id,
                   label: item.name,
-                  detail: owned
-                    ? full
-                      ? `This kitchen can run ${limit === 1 ? "1 dish" : `${limit} dishes`}.`
-                      : undefined
-                    : `Needs ${appliance ? appliance.label.toLowerCase() : "more equipment"}.`,
+                  detail: detail || undefined,
                   disabled: !selected && (!owned || full),
                 };
               })}

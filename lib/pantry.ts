@@ -12,7 +12,7 @@ export type Ingredient = {
 export type Dish = {
   id: string;
   name: string;
-  ingredient: string;
+  ingredients: string[];
   course: Course;
   appliance: ApplianceId;
 };
@@ -55,51 +55,71 @@ export const INGREDIENTS: Ingredient[] = [
 ];
 
 export const DISHES: Dish[] = [
-  { id: "day-loaf", name: "Day loaf", ingredient: "wheat", course: "street", appliance: "oven" },
-  { id: "sunday-loaf", name: "Sunday loaf", ingredient: "wheat", course: "tavern", appliance: "oven" },
-  { id: "barley-broth", name: "Barley broth", ingredient: "barley", course: "street", appliance: "stove" },
-  { id: "oat-porridge", name: "Oat porridge", ingredient: "oats", course: "street", appliance: "stove" },
-  { id: "rice-bowl", name: "Rice bowl", ingredient: "rice", course: "tavern", appliance: "stove" },
-  { id: "bean-pot", name: "Bean pot", ingredient: "beans", course: "street", appliance: "stove" },
-  { id: "toasted-cheese", name: "Toasted cheese", ingredient: "cheese", course: "tavern", appliance: "countertop" },
-  { id: "cheese-board", name: "Cheese board", ingredient: "cheese", course: "fine", appliance: "ice" },
-  { id: "milk-porridge", name: "Milk porridge", ingredient: "milk", course: "street", appliance: "stove" },
-  { id: "butter-cakes", name: "Butter cakes", ingredient: "butter", course: "tavern", appliance: "oven" },
-  { id: "fried-eggs", name: "Fried eggs", ingredient: "eggs", course: "street", appliance: "countertop" },
-  { id: "baked-eggs", name: "Baked eggs", ingredient: "eggs", course: "tavern", appliance: "oven" },
-  { id: "beef-stew", name: "Beef stew", ingredient: "beef", course: "tavern", appliance: "stove" },
-  { id: "roast-beef", name: "Roast beef", ingredient: "beef", course: "fine", appliance: "oven" },
-  { id: "roast-pork", name: "Roast pork", ingredient: "pork", course: "tavern", appliance: "oven" },
-  { id: "pork-pie", name: "Pork pie", ingredient: "pork", course: "street", appliance: "oven" },
-  { id: "roast-chicken", name: "Roast chicken", ingredient: "chicken", course: "tavern", appliance: "oven" },
-  { id: "fried-chicken", name: "Fried chicken", ingredient: "chicken", course: "street", appliance: "fryer" },
-  { id: "roast-mutton", name: "Roast mutton", ingredient: "mutton", course: "tavern", appliance: "oven" },
-  { id: "venison-stew", name: "Venison stew", ingredient: "venison", course: "tavern", appliance: "stove" },
-  { id: "sausage-roll", name: "Sausage roll", ingredient: "sausage", course: "street", appliance: "countertop" },
-  { id: "ration-skillet", name: "Ration skillet", ingredient: "dried-meat", course: "street", appliance: "countertop" },
-  { id: "fish-stew", name: "Fish stew", ingredient: "fish", course: "tavern", appliance: "stove" },
-  { id: "fried-fish", name: "Fried fish", ingredient: "fish", course: "street", appliance: "fryer" },
-  { id: "baked-fish", name: "Baked fish", ingredient: "fish", course: "fine", appliance: "oven" },
-  { id: "shellfish-stew", name: "Shellfish stew", ingredient: "shellfish", course: "tavern", appliance: "stove" },
-  { id: "fried-prawns", name: "Fried prawns", ingredient: "shellfish", course: "street", appliance: "fryer" },
-  { id: "shellfish-platter", name: "Shellfish platter", ingredient: "shellfish", course: "fine", appliance: "ice" },
-  { id: "potato-cakes", name: "Potato cakes", ingredient: "potatoes", course: "street", appliance: "countertop" },
-  { id: "potato-soup", name: "Potato soup", ingredient: "potatoes", course: "tavern", appliance: "stove" },
-  { id: "onion-soup", name: "Onion soup", ingredient: "onions", course: "tavern", appliance: "stove" },
-  { id: "cabbage-pot", name: "Cabbage pot", ingredient: "cabbage", course: "street", appliance: "stove" },
-  { id: "mushroom-soup", name: "Mushroom soup", ingredient: "mushrooms", course: "tavern", appliance: "stove" },
-  { id: "carrot-pottage", name: "Carrot pottage", ingredient: "carrots", course: "street", appliance: "stove" },
-  { id: "turnip-mash", name: "Turnip mash", ingredient: "turnips", course: "street", appliance: "stove" },
-  { id: "apple-tart", name: "Apple tart", ingredient: "apples", course: "tavern", appliance: "oven" },
-  { id: "berry-pie", name: "Berry pie", ingredient: "berries", course: "tavern", appliance: "oven" },
-  { id: "grape-tart", name: "Grape tart", ingredient: "grapes", course: "fine", appliance: "oven" },
-  { id: "honey-cakes", name: "Honey cakes", ingredient: "honey", course: "tavern", appliance: "oven" },
-  { id: "herb-broth", name: "Herb broth", ingredient: "herbs", course: "tavern", appliance: "stove" },
-  { id: "salt-fish", name: "Salt fish", ingredient: "salt", course: "street", appliance: "stove" },
-  { id: "spiced-roast", name: "Spiced roast", ingredient: "spices", course: "fine", appliance: "oven" },
-  { id: "ale-bread", name: "Ale bread", ingredient: "ale", course: "tavern", appliance: "oven" },
-  { id: "wine-supper", name: "Wine supper", ingredient: "wine", course: "fine", appliance: "ice" },
-  { id: "hardtack-supper", name: "Hardtack supper", ingredient: "hardtack", course: "street", appliance: "stove" },
+  { id: "day-loaf", name: "Day loaf", ingredients: ["wheat"], course: "street", appliance: "oven" },
+  { id: "sunday-loaf", name: "Sunday loaf", ingredients: ["wheat"], course: "tavern", appliance: "oven" },
+  { id: "barley-broth", name: "Barley broth", ingredients: ["barley"], course: "street", appliance: "stove" },
+  { id: "oat-porridge", name: "Oat porridge", ingredients: ["oats"], course: "street", appliance: "stove" },
+  { id: "rice-bowl", name: "Rice bowl", ingredients: ["rice"], course: "tavern", appliance: "stove" },
+  { id: "bean-pot", name: "Bean pot", ingredients: ["beans"], course: "street", appliance: "stove" },
+  { id: "toasted-cheese", name: "Toasted cheese", ingredients: ["cheese"], course: "tavern", appliance: "countertop" },
+  { id: "cheese-board", name: "Cheese board", ingredients: ["cheese"], course: "fine", appliance: "ice" },
+  { id: "milk-porridge", name: "Milk porridge", ingredients: ["milk"], course: "street", appliance: "stove" },
+  { id: "butter-cakes", name: "Butter cakes", ingredients: ["butter"], course: "tavern", appliance: "oven" },
+  { id: "fried-eggs", name: "Fried eggs", ingredients: ["eggs"], course: "street", appliance: "countertop" },
+  { id: "baked-eggs", name: "Baked eggs", ingredients: ["eggs"], course: "tavern", appliance: "oven" },
+  { id: "beef-stew", name: "Beef stew", ingredients: ["beef"], course: "tavern", appliance: "stove" },
+  { id: "roast-beef", name: "Roast beef", ingredients: ["beef"], course: "fine", appliance: "oven" },
+  { id: "roast-pork", name: "Roast pork", ingredients: ["pork"], course: "tavern", appliance: "oven" },
+  { id: "pork-pie", name: "Pork pie", ingredients: ["pork"], course: "street", appliance: "oven" },
+  { id: "roast-chicken", name: "Roast chicken", ingredients: ["chicken"], course: "tavern", appliance: "oven" },
+  { id: "fried-chicken", name: "Fried chicken", ingredients: ["chicken"], course: "street", appliance: "fryer" },
+  { id: "roast-mutton", name: "Roast mutton", ingredients: ["mutton"], course: "tavern", appliance: "oven" },
+  { id: "venison-stew", name: "Venison stew", ingredients: ["venison"], course: "tavern", appliance: "stove" },
+  { id: "sausage-roll", name: "Sausage roll", ingredients: ["sausage"], course: "street", appliance: "countertop" },
+  { id: "ration-skillet", name: "Ration skillet", ingredients: ["dried-meat"], course: "street", appliance: "countertop" },
+  { id: "fish-stew", name: "Fish stew", ingredients: ["fish"], course: "tavern", appliance: "stove" },
+  { id: "fried-fish", name: "Fried fish", ingredients: ["fish"], course: "street", appliance: "fryer" },
+  { id: "baked-fish", name: "Baked fish", ingredients: ["fish"], course: "fine", appliance: "oven" },
+  { id: "shellfish-stew", name: "Shellfish stew", ingredients: ["shellfish"], course: "tavern", appliance: "stove" },
+  { id: "fried-prawns", name: "Fried prawns", ingredients: ["shellfish"], course: "street", appliance: "fryer" },
+  { id: "shellfish-platter", name: "Shellfish platter", ingredients: ["shellfish"], course: "fine", appliance: "ice" },
+  { id: "potato-cakes", name: "Potato cakes", ingredients: ["potatoes"], course: "street", appliance: "countertop" },
+  { id: "potato-soup", name: "Potato soup", ingredients: ["potatoes"], course: "tavern", appliance: "stove" },
+  { id: "onion-soup", name: "Onion soup", ingredients: ["onions"], course: "tavern", appliance: "stove" },
+  { id: "cabbage-pot", name: "Cabbage pot", ingredients: ["cabbage"], course: "street", appliance: "stove" },
+  { id: "mushroom-soup", name: "Mushroom soup", ingredients: ["mushrooms"], course: "tavern", appliance: "stove" },
+  { id: "carrot-pottage", name: "Carrot pottage", ingredients: ["carrots"], course: "street", appliance: "stove" },
+  { id: "turnip-mash", name: "Turnip mash", ingredients: ["turnips"], course: "street", appliance: "stove" },
+  { id: "apple-tart", name: "Apple tart", ingredients: ["apples"], course: "tavern", appliance: "oven" },
+  { id: "berry-pie", name: "Berry pie", ingredients: ["berries"], course: "tavern", appliance: "oven" },
+  { id: "grape-tart", name: "Grape tart", ingredients: ["grapes"], course: "fine", appliance: "oven" },
+  { id: "honey-cakes", name: "Honey cakes", ingredients: ["honey"], course: "tavern", appliance: "oven" },
+  { id: "herb-broth", name: "Herb broth", ingredients: ["herbs"], course: "tavern", appliance: "stove" },
+  { id: "salt-fish", name: "Salt fish", ingredients: ["salt"], course: "street", appliance: "stove" },
+  { id: "spiced-roast", name: "Spiced roast", ingredients: ["spices"], course: "fine", appliance: "oven" },
+  { id: "ale-bread", name: "Ale bread", ingredients: ["ale"], course: "tavern", appliance: "oven" },
+  { id: "wine-supper", name: "Wine supper", ingredients: ["wine"], course: "fine", appliance: "ice" },
+  { id: "hardtack-supper", name: "Hardtack supper", ingredients: ["hardtack"], course: "street", appliance: "stove" },
+  { id: "wine-bread", name: "Wine bread", ingredients: ["wheat", "wine"], course: "tavern", appliance: "oven" },
+  { id: "ale-loaf", name: "Ale loaf", ingredients: ["wheat", "ale"], course: "tavern", appliance: "oven" },
+  { id: "onion-loaf", name: "Onion loaf", ingredients: ["wheat", "onions"], course: "street", appliance: "oven" },
+  { id: "cheese-onion-pie", name: "Cheese and onion pie", ingredients: ["wheat", "cheese", "onions"], course: "tavern", appliance: "oven" },
+  { id: "berry-wheat-tart", name: "Berry wheat tart", ingredients: ["wheat", "berries"], course: "tavern", appliance: "oven" },
+  { id: "fisherman-pie", name: "Fisherman's pie", ingredients: ["fish", "potatoes", "wheat"], course: "tavern", appliance: "oven" },
+  { id: "herb-chicken", name: "Herb chicken", ingredients: ["chicken", "herbs"], course: "tavern", appliance: "oven" },
+  { id: "venison-mushroom", name: "Venison and mushrooms", ingredients: ["venison", "mushrooms"], course: "fine", appliance: "oven" },
+  { id: "spiced-prawns", name: "Spiced prawns", ingredients: ["shellfish", "spices"], course: "street", appliance: "fryer" },
+  { id: "pork-and-beans", name: "Pork and beans", ingredients: ["pork", "beans"], course: "tavern", appliance: "stove" },
+  { id: "mushroom-barley", name: "Mushroom barley", ingredients: ["mushrooms", "barley"], course: "tavern", appliance: "stove" },
+  { id: "herbed-fish", name: "Herbed fish", ingredients: ["fish", "herbs"], course: "tavern", appliance: "stove" },
+  { id: "beef-and-turnip", name: "Beef and turnip", ingredients: ["beef", "turnips"], course: "tavern", appliance: "stove" },
+  { id: "spiced-rice", name: "Spiced rice", ingredients: ["rice", "spices"], course: "tavern", appliance: "stove" },
+  { id: "sausage-cabbage", name: "Sausage and cabbage", ingredients: ["sausage", "cabbage"], course: "street", appliance: "stove" },
+  { id: "salt-pork", name: "Salt pork", ingredients: ["pork", "salt"], course: "street", appliance: "stove" },
+  { id: "wine-stew", name: "Wine stew", ingredients: ["beef", "wine"], course: "tavern", appliance: "stove" },
+  { id: "cream-eggs", name: "Creamed eggs", ingredients: ["eggs", "milk", "butter"], course: "tavern", appliance: "stove" },
+  { id: "honey-berries", name: "Honeyed berries", ingredients: ["honey", "berries"], course: "street", appliance: "countertop" },
+  { id: "grape-cheese", name: "Grapes and cheese", ingredients: ["grapes", "cheese"], course: "fine", appliance: "ice" },
 ];
 
 const TASTE: Record<RegionId, { favorite: string[]; exotic: string[]; taboo: string[] }> = {
@@ -141,14 +161,15 @@ const TASTE: Record<RegionId, { favorite: string[]; exotic: string[]; taboo: str
 };
 
 export function dishesFor(ingredient: string): Dish[] {
-  const matches = DISHES.filter((dish) => dish.ingredient === ingredient);
-  return matches.length > 0 ? matches : DISHES.filter((dish) => dish.ingredient === "wheat");
+  const matches = DISHES.filter((dish) => dish.ingredients.length === 1 && dish.ingredients[0] === ingredient);
+  return matches.length > 0 ? matches : DISHES.filter((dish) => dish.ingredients.length === 1 && dish.ingredients[0] === "wheat");
 }
 
 export function dishesForIngredients(ingredients: readonly string[]): Dish[] {
   const allowed = new Set(ingredients);
-  const matches = DISHES.filter((dish) => allowed.has(dish.ingredient));
-  return matches.length > 0 ? matches : dishesFor(ingredients[0] ?? "wheat");
+  const matches = DISHES.filter((dish) => dish.ingredients.every((id) => allowed.has(id)));
+  if (matches.length === 0) return dishesFor(ingredients[0] ?? "wheat");
+  return [...matches].sort((a, b) => b.ingredients.length - a.ingredients.length || a.name.localeCompare(b.name));
 }
 
 export function tasteFor(region: RegionId, ingredient: string): "favorite" | "neutral" | "exotic" | "taboo" {
