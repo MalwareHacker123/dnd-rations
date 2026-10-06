@@ -79,7 +79,7 @@ function MultiPick<T extends string>({
 }) {
   const names = options.filter((option) => selected.includes(option.id)).map((option) => option.label);
   return (
-    <details className="group relative">
+    <details name="kitchen-picks" className="group">
       <summary
         aria-label={label}
         className={`${selectClass} flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden`}
@@ -87,7 +87,7 @@ function MultiPick<T extends string>({
         <span className="truncate text-left">{choiceSummary(names)}</span>
         <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
       </summary>
-      <div className="absolute z-30 mt-1 max-h-72 w-full overflow-auto rounded-xl border border-input bg-card p-1 shadow-lg">
+      <div className="mt-1 max-h-72 w-full overflow-auto rounded-xl border border-input bg-card p-1">
         {options.map((option) => (
           <label key={option.id} className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg px-2 py-2 hover:bg-muted">
             <Checkbox
