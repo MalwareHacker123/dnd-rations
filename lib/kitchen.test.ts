@@ -140,7 +140,7 @@ describe("kitchen slip", () => {
     expect(quiet?.conflicts).toEqual(["riot"]);
   });
 
-  it("limits the book to the appliances on hand and the recipes the roll can hold", () => {
+  it("limits the book to the appliances on hand and the menu size you choose", () => {
     const stoveOnly = sanitizeChoices({
       ...exampleChoices(),
       appliances: ["stove"],
@@ -159,8 +159,11 @@ describe("kitchen slip", () => {
       ingredients: ["shellfish", "wheat", "cheese"],
       dishes: ["shellfish-stew", "fried-prawns", "shellfish-platter", "day-loaf", "sunday-loaf", "cheese-board"],
       roll: 8,
+      menuSize: 8,
     });
-    expect(crowded?.dishes).toEqual(["shellfish-stew"]);
+    expect(crowded?.dishes).toHaveLength(6);
+    const sized = sanitizeChoices({ ...crowded, menuSize: 1 });
+    expect(sized?.dishes).toEqual(["shellfish-stew"]);
     const dark = sanitizeChoices({ ...exampleChoices(), appliances: [] });
     expect(dark?.dishes).toEqual([]);
     expect(kitchenCount(dark!).served).toBe(0);

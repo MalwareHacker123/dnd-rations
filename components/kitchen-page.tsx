@@ -13,10 +13,7 @@ import {
   WEALTH,
   WEEKS,
   choicesFromHouse,
-  dishLimit,
   kitchenCount,
-  kitchenRoom,
-  recipesKnown,
   rollLine,
   toHouse,
   type ConflictId,
@@ -109,13 +106,11 @@ function choiceSummary(names: string[], emptyLabel: string): string {
   return `${names[0]}, ${names[1]} +${names.length - 2}`;
 }
 
-function dishHint(appliances: readonly ApplianceId[], roll: number): string {
-  const room = kitchenRoom(appliances);
-  const known = recipesKnown(roll);
-  const limit = dishLimit(appliances, roll);
-  if (room === 0) return "The book has every plate for these ingredients. Tick some equipment before anything can cook.";
-  const plates = limit === 1 ? "1 dish" : `${limit} dishes`;
-  return `The book lists every plate for these ingredients. You can run ${plates}: the roll covers ${known}, and the kitchen holds ${room}.`;
+function dishHint(menuSize: number, hasGear: boolean): string {
+  if (!hasGear) return "Tick some equipment before anything can cook. Menu size is your choice, not the roll.";
+  if (menuSize <= 0) return "Menu size is blank, so no dishes are on the board. The roll does not set this.";
+  const plates = menuSize === 1 ? "1 dish" : `${menuSize} dishes`;
+  return `The menu lists ${plates}. Change that number yourself. The cooking roll does not limit it.`;
 }
 
 function phrase(items: string[]): string {
@@ -184,7 +179,7 @@ export function KitchenPage() {
   const saves = useSyncExternalStore(subscribeSaves, getSaveSnapshot, getServerSaveSnapshot);
   const math = useMemo(() => kitchenCount(choices), [choices]);
   const dishes = dishesForIngredients(choices.ingredients);
-  const limit = dishLimit(choices.appliances, choices.roll);
+  const limit = choices.menuSize;
   const [draftName, setDraftName] = useState("");
   const [notice, setNotice] = useState("");
   const dishNames = choices.dishes
@@ -215,7 +210,7 @@ export function KitchenPage() {
     });
     if (nextDishes.length === 0) {
       const first = dishesForIngredients(ingredients).find((dish) => choices.appliances.includes(dish.appliance));
-      nextDishes = first && dishLimit(choices.appliances, choices.roll) > 0 ? [first.id] : [];
+      nextDishes = first && choices.menuSize > 0 ? [first.id] : [];
     }
     setKitchenSnapshot({ ...choices, ingredients, dishes: nextDishes });
   }
@@ -362,7 +357,16 @@ export function KitchenPage() {
             />
           </Field>
 
-          <Field label="Dishes" hint={dishHint(choices.appliances, choices.roll)}>
+          <Field label="Menu size" hint="How many dishes are on the menu. Blank counts as 0. The roll does not change this.">
+            <NumberBox
+              label="Menu size"
+              value={choices.menuSize}
+              max={40}
+              onValue={(menuSize) => patch({ menuSize })}
+            />
+          </Field>
+
+          <Field label="Dishes" hint={dishHint(choices.menuSize, choices.appliances.length > 0)}>
             <MultiPick
               label="Dishes"
               emptyLabel="Nothing on the fire"
@@ -377,7 +381,7 @@ export function KitchenPage() {
                     : "";
                 const lock = owned
                   ? full
-                    ? `This kitchen can run ${limit === 1 ? "1 dish" : `${limit} dishes`}.`
+                    ? `Menu size is ${limit === 1 ? "1 dish" : `${limit} dishes`}.`
                     : ""
                   : `Needs ${appliance ? appliance.label.toLowerCase() : "more equipment"}.`;
                 const detail = [recipe, lock].filter(Boolean).join(". ");

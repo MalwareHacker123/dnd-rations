@@ -40,6 +40,7 @@ export type KitchenChoices = {
   week: WeekAnswer;
   seats: number;
   appliances: ApplianceId[];
+  menuSize: number;
 };
 
 export const WEALTH: { id: WealthId; label: string; detail: string; value: number; district: number }[] = [
@@ -64,14 +65,13 @@ export const APPLIANCES: {
   id: ApplianceId;
   label: string;
   detail: string;
-  slots: number;
 }[] = [
-  { id: "stove", label: "Stove", detail: "Two pots. Stews, soups, and porridge.", slots: 2 },
-  { id: "countertop", label: "Countertop cooker", detail: "One hot plate. Griddle food.", slots: 1 },
-  { id: "fryer", label: "Deep fryer", detail: "One basket. Fried plates.", slots: 1 },
-  { id: "oven", label: "Oven", detail: "Bread, pies, and roasts.", slots: 2 },
-  { id: "ice", label: "Ice storage", detail: "A cold room for platters and boards.", slots: 2 },
-  { id: "larder", label: "Larder", detail: "Dry storage. Hold more dishes than the fire can cook at once.", slots: 3 },
+  { id: "stove", label: "Stove", detail: "Stews, soups, and porridge." },
+  { id: "countertop", label: "Countertop cooker", detail: "Griddle food." },
+  { id: "fryer", label: "Deep fryer", detail: "Fried plates." },
+  { id: "oven", label: "Oven", detail: "Bread, pies, and roasts." },
+  { id: "ice", label: "Ice storage", detail: "Cold platters and boards." },
+  { id: "larder", label: "Larder", detail: "Dry storage for ingredients." },
 ];
 
 export const WEEKS: { id: WeekAnswer; label: string }[] = [
@@ -87,23 +87,9 @@ const WEEK_IDS = new Set(WEEKS.map((item) => item.id));
 const INGREDIENT_IDS = INGREDIENTS.map((item) => item.id);
 const APPLIANCE_IDS = APPLIANCES.map((item) => item.id);
 
-export function recipesKnown(roll: number): number {
-  const clean = Math.max(0, Math.floor(roll));
-  if (clean < 10) return 1;
-  if (clean < 15) return 2;
-  if (clean < 20) return 3;
-  if (clean < 25) return 4;
-  return 5 + Math.floor((clean - 25) / 5);
-}
-
-export function kitchenRoom(appliances: readonly ApplianceId[]): number {
-  return appliances.reduce((sum, id) => sum + (APPLIANCES.find((item) => item.id === id)?.slots ?? 0), 0);
-}
-
-export function dishLimit(appliances: readonly ApplianceId[], roll: number): number {
-  const room = kitchenRoom(appliances);
-  if (room === 0) return 0;
-  return Math.min(recipesKnown(roll), room);
+export function dishLimit(menuSize: number): number {
+  if (!Number.isFinite(menuSize)) return 0;
+  return Math.min(40, Math.max(0, Math.floor(menuSize)));
 }
 
 export function exampleChoices(): KitchenChoices {
@@ -120,6 +106,7 @@ export function exampleChoices(): KitchenChoices {
     week: "yes",
     seats: 300,
     appliances: ["stove"],
+    menuSize: 4,
   };
 }
 
@@ -162,7 +149,8 @@ export function sanitizeChoices(input: unknown): KitchenChoices | null {
     : inferAppliances(requested);
   const cookable = new Set(menu.filter((dish) => appliances.includes(dish.appliance)).map((dish) => dish.id));
   const roll = clamp(typeof input.roll === "number" ? input.roll : base.roll, 0, 40);
-  const dishes = requested.filter((id) => cookable.has(id)).slice(0, dishLimit(appliances, roll));
+  const menuSize = dishLimit(typeof input.menuSize === "number" ? input.menuSize : base.menuSize);
+  const dishes = requested.filter((id) => cookable.has(id)).slice(0, menuSize);
   const regions = pickIds(
     Array.isArray(input.regions) ? input.regions : input.region,
     REGION_IDS,
@@ -191,6 +179,7 @@ export function sanitizeChoices(input: unknown): KitchenChoices | null {
       typeof input.week === "string" && WEEK_IDS.has(input.week as WeekAnswer) ? (input.week as WeekAnswer) : base.week,
     seats: clamp(typeof input.seats === "number" ? input.seats : base.seats, 0, 100000),
     appliances,
+    menuSize,
   };
 }
 

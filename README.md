@@ -1,6 +1,6 @@
 # The Kitchen
 
-One page for a night's service. The first boxes are the large equipment in the kitchen. Then tick ingredients. Dishes that need more than one ingredient, such as wine bread, appear when every ingredient is selected. A longer menu brings more customers. The cooking roll and the storage limit how many plates you can run.
+One page for a night's service. The first boxes are the large equipment in the kitchen. Then tick ingredients. Dishes that need more than one ingredient, such as wine bread, appear when every ingredient is selected. A longer menu brings more customers. Menu size is a number you choose. The cooking roll changes who pays, not how many dishes you can list.
 
 The sample night is shellfish stew in the Port District: 5,821 interested, 300 seated, and 3,085 turned away.
 
