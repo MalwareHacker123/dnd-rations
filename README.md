@@ -1,8 +1,8 @@
-# Quartermaster
+# The Kitchen
 
-Two sheets for the same table.
+One page for a night's service. Choose an ingredient, then a dish that uses it, then the region, the wealth on the street, any trouble in town, and the cooking or charisma roll. The ticket says how many people pay.
 
-**Customers** runs the master customer equation: effective foot traffic, food appeal, market decay, and a logistic conversion rate, capped by the number of seats. The sample house is an Italian seafood bistro in the Port District: 5,821 interested, 58.16% conversion, 300 seated, and 3,085 turned away.
+The sample night is shellfish stew in the Port District: 5,821 interested, 300 seated, and 3,085 turned away.
 
 **Supplies** is a checklist for food, water, feed, and gear on a fifth-edition trip. Tick who is eating, which animals are in harness, and what goes in the packs. The ledger totals the weight, the coin, and whether a cart, a mule, or the party can carry it. The sample trip is four people, one mule, a cart, and fourteen days of rations and water.
 

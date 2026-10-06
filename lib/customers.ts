@@ -42,6 +42,14 @@ export type House = {
   service: ServiceStyle;
   friction: FrictionId;
   capacity: number;
+  /** When set, foot traffic uses this wealth instead of the region's published tier. */
+  trafficWealth?: number;
+  /** When set, this replaces the region's backing multiplier. */
+  systemValue?: number;
+  /** Added to the cook's reputation after the roll, unless a slump is in effect. */
+  reputationBonus?: number;
+  /** The simple kitchen form that produced this house. */
+  choices?: Record<string, unknown>;
 };
 
 export type FactorLine = {
@@ -418,6 +426,16 @@ export function sanitizeHouse(input: unknown): House | null {
     service,
     friction,
     capacity: clampInt(typeof input.capacity === "number" ? input.capacity : base.capacity, 0, 100000),
+    ...(typeof input.trafficWealth === "number" && Number.isFinite(input.trafficWealth)
+      ? { trafficWealth: input.trafficWealth }
+      : {}),
+    ...(typeof input.systemValue === "number" && Number.isFinite(input.systemValue)
+      ? { systemValue: input.systemValue }
+      : {}),
+    ...(typeof input.reputationBonus === "number" && Number.isFinite(input.reputationBonus)
+      ? { reputationBonus: Math.max(0, Math.min(20, Math.floor(input.reputationBonus))) }
+      : {}),
+    ...(isRecord(input.choices) ? { choices: input.choices } : {}),
   };
 }
 
@@ -497,7 +515,14 @@ export function calculateHouse(house: House): HouseMath {
   const region = REGIONS[house.region];
   const mCuisine = cuisineMultiplier(house.region, house.cuisine);
   const price = priceMultiplier(house.region, house.menuTier, house.districtTier);
-  const rep = reputationMultiplier(house.region, house.checkTotal, house.slumpDays);
+  const rolled = reputationMultiplier(house.region, house.checkTotal, house.slumpDays);
+  const rep =
+    rolled.note || !house.reputationBonus
+      ? rolled
+      : {
+          value: roundTo(rolled.value + house.reputationBonus / 40, 2),
+          note: null,
+        };
   const ingredient = house.favoredIngredient ? 1 : 0;
   const dish = house.wantedDish ? 1 : 0;
   const weeklyIngredient = 0.2 * ingredient;
@@ -512,11 +537,17 @@ export function calculateHouse(house: House): HouseMath {
     weekly: roundTo(0.15 * mWeekly, 3),
   };
   const aFood = roundTo(weights.cuisine + weights.price + weights.rep + weights.weekly, 2);
-  const mSystem = systemFor(house.region, house.system).value;
+  const mSystem =
+    typeof house.systemValue === "number" ? house.systemValue : systemFor(house.region, house.system).value;
+  const wealthValue = typeof house.trafficWealth === "number" ? house.trafficWealth : region.wealth;
+  const bEff =
+    typeof house.trafficWealth === "number"
+      ? Math.round(region.base * (1 + Math.log(house.trafficWealth)))
+      : region.bEff;
   const decay = roundTo(Math.exp(-region.lambda * competitors), 4);
   const eMarket = roundTo(decay * mSystem, 4);
   const appealSquare = roundTo(aFood * aFood, 4);
-  const interest = Math.floor(roundTo(region.bEff * appealSquare * eMarket, 4));
+  const interest = Math.floor(roundTo(bEff * appealSquare * eMarket, 4));
   const expTerm = roundTo(Math.exp(-4 * (aFood - 1)), 4);
   const sigmoid = truncTo(region.crMax / (1 + expTerm), 4);
   const fService = serviceValue(house.service);
@@ -537,7 +568,7 @@ export function calculateHouse(house: House): HouseMath {
       id: "traffic",
       on: true,
       label: `${region.name} baseline`,
-      effect: `${formatCount(region.bEff)} passers-by from base ${formatCount(region.base)} and wealth ${formatFixed(region.wealth, 2)}`,
+      effect: `${formatCount(bEff)} passers-by from base ${formatCount(region.base)} and wealth ${formatFixed(wealthValue, 2)}`,
     },
     {
       id: "cuisine",
@@ -614,9 +645,9 @@ export function calculateHouse(house: House): HouseMath {
   ];
 
   return {
-    bEff: region.bEff,
+    bEff,
     bRegion: region.base,
-    wealth: region.wealth,
+    wealth: wealthValue,
     mCuisine,
     mPrice: price.value,
     priceNote: price.note,

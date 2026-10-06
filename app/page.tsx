@@ -1,5 +1,5 @@
-import { Quartermaster } from "@/components/quartermaster";
+import { KitchenPage } from "@/components/kitchen-page";
 
 export default function Home() {
-  return <Quartermaster />;
+  return <KitchenPage />;
 }
