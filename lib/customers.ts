@@ -48,6 +48,21 @@ export type House = {
   systemValue?: number;
   /** Added to the cook's reputation after the roll, unless a slump is in effect. */
   reputationBonus?: number;
+  /** Averaged cuisine multiplier when more than one dish or region is selected. */
+  cuisineValue?: number;
+  /** Averaged price multiplier when more than one dish, region, or wealth tier is selected. */
+  priceValue?: number;
+  priceNote?: string | null;
+  /** Final reputation multiplier when several regions include a Pomodoro slump. */
+  reputationValue?: number;
+  reputationNote?: string | null;
+  /** Averaged service factor when more than one dish is selected. */
+  serviceFactor?: number;
+  /** Product of friction factors when more than one conflict is selected. */
+  frictionFactor?: number;
+  lambdaOverride?: number;
+  crMaxOverride?: number;
+  bEffOverride?: number;
   /** The simple kitchen form that produced this house. */
   choices?: Record<string, unknown>;
 };
@@ -513,16 +528,22 @@ function headlineFor(served: number, attracted: number, capacity: number): { hea
 
 export function calculateHouse(house: House): HouseMath {
   const region = REGIONS[house.region];
-  const mCuisine = cuisineMultiplier(house.region, house.cuisine);
-  const price = priceMultiplier(house.region, house.menuTier, house.districtTier);
+  const mCuisine =
+    typeof house.cuisineValue === "number" ? house.cuisineValue : cuisineMultiplier(house.region, house.cuisine);
+  const price =
+    typeof house.priceValue === "number"
+      ? { value: house.priceValue, note: house.priceNote ?? null }
+      : priceMultiplier(house.region, house.menuTier, house.districtTier);
   const rolled = reputationMultiplier(house.region, house.checkTotal, house.slumpDays);
   const rep =
-    rolled.note || !house.reputationBonus
-      ? rolled
-      : {
-          value: roundTo(rolled.value + house.reputationBonus / 40, 2),
-          note: null,
-        };
+    typeof house.reputationValue === "number"
+      ? { value: house.reputationValue, note: house.reputationNote ?? null }
+      : rolled.note || !house.reputationBonus
+        ? rolled
+        : {
+            value: roundTo(rolled.value + house.reputationBonus / 40, 2),
+            note: null,
+          };
   const ingredient = house.favoredIngredient ? 1 : 0;
   const dish = house.wantedDish ? 1 : 0;
   const weeklyIngredient = 0.2 * ingredient;
@@ -540,18 +561,22 @@ export function calculateHouse(house: House): HouseMath {
   const mSystem =
     typeof house.systemValue === "number" ? house.systemValue : systemFor(house.region, house.system).value;
   const wealthValue = typeof house.trafficWealth === "number" ? house.trafficWealth : region.wealth;
+  const lambda = typeof house.lambdaOverride === "number" ? house.lambdaOverride : region.lambda;
+  const crMax = typeof house.crMaxOverride === "number" ? house.crMaxOverride : region.crMax;
   const bEff =
-    typeof house.trafficWealth === "number"
-      ? Math.round(region.base * (1 + Math.log(house.trafficWealth)))
-      : region.bEff;
-  const decay = roundTo(Math.exp(-region.lambda * competitors), 4);
+    typeof house.bEffOverride === "number"
+      ? house.bEffOverride
+      : typeof house.trafficWealth === "number"
+        ? Math.round(region.base * (1 + Math.log(house.trafficWealth)))
+        : region.bEff;
+  const decay = roundTo(Math.exp(-lambda * competitors), 4);
   const eMarket = roundTo(decay * mSystem, 4);
   const appealSquare = roundTo(aFood * aFood, 4);
   const interest = Math.floor(roundTo(bEff * appealSquare * eMarket, 4));
   const expTerm = roundTo(Math.exp(-4 * (aFood - 1)), 4);
-  const sigmoid = truncTo(region.crMax / (1 + expTerm), 4);
-  const fService = serviceValue(house.service);
-  const fFriction = frictionValue(house.friction);
+  const sigmoid = truncTo(crMax / (1 + expTerm), 4);
+  const fService = typeof house.serviceFactor === "number" ? house.serviceFactor : serviceValue(house.service);
+  const fFriction = typeof house.frictionFactor === "number" ? house.frictionFactor : frictionValue(house.friction);
   const cr = roundTo(sigmoid * fService * fFriction, 4);
   const attracted = Math.floor(roundTo(interest * cr, 4));
   const served = Math.min(house.capacity, Math.max(0, attracted));
@@ -625,22 +650,19 @@ export function calculateHouse(house: House): HouseMath {
       id: "system",
       on: true,
       label: system.label,
-      effect: `System multiplier ${formatFixed(system.value, 2)}`,
+      effect: `System multiplier ${formatFixed(mSystem, 2)}`,
     },
     {
       id: "service",
       on: true,
       label: service.label,
-      effect: `Service factor ${formatFixed(service.value, 2)}`,
+      effect: `Service factor ${formatFixed(fService, 2)}`,
     },
     {
       id: "friction",
-      on: house.friction !== "normal",
+      on: fFriction !== 1,
       label: friction.label,
-      effect:
-        house.friction === "normal"
-          ? "No extra friction. Factor 1.00"
-          : `Friction factor ${formatFixed(friction.value, 2)}`,
+      effect: fFriction === 1 ? "No extra friction. Factor 1.00" : `Friction factor ${formatFixed(fFriction, 2)}`,
     },
   ];
 
@@ -656,14 +678,14 @@ export function calculateHouse(house: House): HouseMath {
     mWeekly,
     weights,
     aFood,
-    lambda: region.lambda,
+    lambda,
     competitors,
     factors,
     mSystem,
     decay,
     eMarket,
     interest,
-    crMax: region.crMax,
+    crMax,
     expTerm,
     sigmoid,
     fService,

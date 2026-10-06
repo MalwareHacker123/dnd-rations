@@ -142,6 +142,12 @@ export function dishesFor(ingredient: string): Dish[] {
   return matches.length > 0 ? matches : DISHES.filter((dish) => dish.ingredient === "wheat");
 }
 
+export function dishesForIngredients(ingredients: readonly string[]): Dish[] {
+  const allowed = new Set(ingredients);
+  const matches = DISHES.filter((dish) => allowed.has(dish.ingredient));
+  return matches.length > 0 ? matches : dishesFor(ingredients[0] ?? "wheat");
+}
+
 export function tasteFor(region: RegionId, ingredient: string): "favorite" | "neutral" | "exotic" | "taboo" {
   const taste = TASTE[region];
   if (taste.taboo.includes(ingredient)) return "taboo";

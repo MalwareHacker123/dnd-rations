@@ -1,12 +1,18 @@
 import {
+  FRICTIONS,
+  REGIONS,
+  SERVICES,
   calculateHouse,
+  cuisineMultiplier,
+  priceMultiplier,
+  roundTo,
   type CuisineFit,
   type FrictionId,
   type House,
   type RegionId,
   type ServiceStyle,
 } from "@/lib/customers";
-import { DISHES, INGREDIENTS, dishesFor, tasteFor, type Course, type Dish } from "@/lib/pantry";
+import { DISHES, INGREDIENTS, dishesForIngredients, tasteFor, type Course, type Dish } from "@/lib/pantry";
 
 export type WealthId = "poor" | "modest" | "comfortable" | "well-off" | "rich";
 export type ConflictId = "none" | "shakedown" | "unpaid" | "unlicensed" | "riot" | "hype" | "backed";
@@ -14,13 +20,13 @@ export type WeekAnswer = "yes" | "maybe" | "no";
 
 export type KitchenChoices = {
   name: string;
-  ingredient: string;
-  dish: string;
-  region: RegionId;
+  ingredients: string[];
+  dishes: string[];
+  regions: RegionId[];
   rivals: number;
   reputation: number;
-  wealth: WealthId;
-  conflict: ConflictId;
+  wealths: WealthId[];
+  conflicts: ConflictId[];
   roll: number;
   week: WeekAnswer;
   seats: number;
@@ -50,22 +56,22 @@ export const WEEKS: { id: WeekAnswer; label: string }[] = [
   { id: "no", label: "No" },
 ];
 
-const REGIONS: RegionId[] = ["vin", "mi", "pomodoro", "scones", "pimiento", "port", "fast-food"];
-const WEALTH_IDS = new Set(WEALTH.map((item) => item.id));
-const CONFLICT_IDS = new Set(CONFLICTS.map((item) => item.id));
+const REGION_IDS: RegionId[] = ["vin", "mi", "pomodoro", "scones", "pimiento", "port", "fast-food"];
+const WEALTH_IDS = WEALTH.map((item) => item.id);
+const CONFLICT_IDS = CONFLICTS.map((item) => item.id);
 const WEEK_IDS = new Set(WEEKS.map((item) => item.id));
-const INGREDIENT_IDS = new Set(INGREDIENTS.map((item) => item.id));
+const INGREDIENT_IDS = INGREDIENTS.map((item) => item.id);
 
 export function exampleChoices(): KitchenChoices {
   return {
     name: "Evening service",
-    ingredient: "shellfish",
-    dish: "shellfish-stew",
-    region: "port",
+    ingredients: ["shellfish"],
+    dishes: ["shellfish-stew"],
+    regions: ["port"],
     rivals: 3,
     reputation: 0,
-    wealth: "modest",
-    conflict: "none",
+    wealths: ["modest"],
+    conflicts: ["none"],
     roll: 16,
     week: "yes",
     seats: 300,
@@ -80,33 +86,53 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function unique<T extends string>(items: T[]): T[] {
+  return [...new Set(items)];
+}
+
+function pickIds<T extends string>(value: unknown, allowed: readonly T[], fallback: T[]): T[] {
+  const raw = Array.isArray(value) ? value : typeof value === "string" ? [value] : [];
+  const allowedSet = new Set<string>(allowed);
+  const next = unique(raw.filter((item): item is T => typeof item === "string" && allowedSet.has(item)));
+  return next.length > 0 ? next : fallback;
+}
+
 export function sanitizeChoices(input: unknown): KitchenChoices | null {
   if (!isRecord(input)) return null;
   const base = exampleChoices();
-  const ingredient =
-    typeof input.ingredient === "string" && INGREDIENT_IDS.has(input.ingredient) ? input.ingredient : base.ingredient;
-  const menu = dishesFor(ingredient);
-  const requestedDish = typeof input.dish === "string" ? input.dish : base.dish;
-  const dish = menu.some((item) => item.id === requestedDish) ? requestedDish : menu[0].id;
-  const region =
-    typeof input.region === "string" && REGIONS.includes(input.region as RegionId)
-      ? (input.region as RegionId)
-      : base.region;
+  const ingredients = pickIds(
+    Array.isArray(input.ingredients) ? input.ingredients : input.ingredient,
+    INGREDIENT_IDS,
+    base.ingredients,
+  );
+  const menu = dishesForIngredients(ingredients);
+  const menuIds = new Set(menu.map((item) => item.id));
+  const requestedDishes = Array.isArray(input.dishes) ? input.dishes : input.dish;
+  const dishRaw = Array.isArray(requestedDishes) ? requestedDishes : typeof requestedDishes === "string" ? [requestedDishes] : [];
+  const dishes = unique(dishRaw.filter((item): item is string => typeof item === "string" && menuIds.has(item)));
+  const regions = pickIds(
+    Array.isArray(input.regions) ? input.regions : input.region,
+    REGION_IDS,
+    base.regions,
+  );
+  const wealths = pickIds(Array.isArray(input.wealths) ? input.wealths : input.wealth, WEALTH_IDS, base.wealths);
+  let conflicts = pickIds(
+    Array.isArray(input.conflicts) ? input.conflicts : input.conflict,
+    CONFLICT_IDS,
+    base.conflicts,
+  );
+  if (conflicts.includes("none") && conflicts.length > 1) {
+    conflicts = conflicts.filter((item) => item !== "none");
+  }
   return {
     name: typeof input.name === "string" ? input.name.slice(0, 60) : base.name,
-    ingredient,
-    dish,
-    region,
+    ingredients,
+    dishes: dishes.length > 0 ? dishes : [menu[0].id],
+    regions,
     rivals: clamp(typeof input.rivals === "number" ? input.rivals : base.rivals, 0, 40),
     reputation: clamp(typeof input.reputation === "number" ? input.reputation : base.reputation, 0, 20),
-    wealth:
-      typeof input.wealth === "string" && WEALTH_IDS.has(input.wealth as WealthId)
-        ? (input.wealth as WealthId)
-        : base.wealth,
-    conflict:
-      typeof input.conflict === "string" && CONFLICT_IDS.has(input.conflict as ConflictId)
-        ? (input.conflict as ConflictId)
-        : base.conflict,
+    wealths,
+    conflicts,
     roll: clamp(typeof input.roll === "number" ? input.roll : base.roll, 0, 40),
     week:
       typeof input.week === "string" && WEEK_IDS.has(input.week as WeekAnswer) ? (input.week as WeekAnswer) : base.week,
@@ -115,7 +141,15 @@ export function sanitizeChoices(input: unknown): KitchenChoices | null {
 }
 
 export function choicesFromHouse(house: House): KitchenChoices {
-  return sanitizeChoices(house.choices) ?? { ...exampleChoices(), region: house.region, seats: house.capacity, roll: house.checkTotal, rivals: house.competitors };
+  return (
+    sanitizeChoices(house.choices) ?? {
+      ...exampleChoices(),
+      regions: [house.region],
+      seats: house.capacity,
+      roll: house.checkTotal,
+      rivals: house.competitors,
+    }
+  );
 }
 
 function courseOf(dish: Dish): { menuTier: number; service: ServiceStyle } {
@@ -127,42 +161,118 @@ function courseOf(dish: Dish): { menuTier: number; service: ServiceStyle } {
   return table[dish.course];
 }
 
+function mean(values: number[]): number {
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function frictionOf(id: FrictionId): number {
+  return FRICTIONS.find((item) => item.id === id)?.value ?? 1;
+}
+
+function serviceOf(service: ServiceStyle): number {
+  return SERVICES.find((item) => item.id === service)?.value ?? 1;
+}
+
 export function toHouse(choices: KitchenChoices): House {
   const clean = sanitizeChoices(choices) ?? exampleChoices();
-  const dish = DISHES.find((item) => item.id === clean.dish) ?? dishesFor(clean.ingredient)[0];
-  const ingredient = INGREDIENTS.find((item) => item.id === clean.ingredient);
-  const wealth = WEALTH.find((item) => item.id === clean.wealth) ?? WEALTH[1];
-  const conflict = CONFLICTS.find((item) => item.id === clean.conflict) ?? CONFLICTS[0];
+  const selectedDishes = clean.dishes
+    .map((id) => DISHES.find((item) => item.id === id))
+    .filter((item): item is Dish => Boolean(item));
+  const dish = selectedDishes[0] ?? dishesForIngredients(clean.ingredients)[0];
+  const wealthItems = clean.wealths
+    .map((id) => WEALTH.find((item) => item.id === id))
+    .filter((item): item is (typeof WEALTH)[number] => Boolean(item));
+  const wealth = wealthItems[0] ?? WEALTH[1];
+  const wealthValue = wealthItems.length === 1 ? wealth.value : mean(wealthItems.map((item) => item.value));
+  const realConflicts = clean.conflicts
+    .filter((id) => id !== "none")
+    .map((id) => CONFLICTS.find((item) => item.id === id))
+    .filter((item): item is (typeof CONFLICTS)[number] => Boolean(item));
+  const conflict = realConflicts[0];
   const course = courseOf(dish);
-  const fit: CuisineFit = tasteFor(clean.region, clean.ingredient);
+  const region = clean.regions[0];
+  const fit: CuisineFit = tasteFor(region, dish.ingredient);
   const venues = Array.from({ length: clean.rivals }, (_, index) => ({
     id: `rival-${index + 1}`,
     name: `Rival ${index + 1}`,
     open: true,
   }));
+  const mixedRegions = clean.regions.length > 1;
+  const mixedDishes = selectedDishes.length > 1;
+  const mixedWealth = wealthItems.length > 1;
+  const cuisineSamples: number[] = [];
+  const priceSamples: { value: number; note: string | null }[] = [];
+  for (const plate of selectedDishes) {
+    const plateCourse = courseOf(plate);
+    for (const regionId of clean.regions) {
+      cuisineSamples.push(cuisineMultiplier(regionId, tasteFor(regionId, plate.ingredient)));
+      for (const band of wealthItems) {
+        priceSamples.push(priceMultiplier(regionId, plateCourse.menuTier, band.district));
+      }
+    }
+  }
+  const priceNotes = [...new Set(priceSamples.map((sample) => sample.note).filter((note): note is string => Boolean(note)))];
+  const averagedWealth = mean(wealthItems.map((item) => item.value));
+  const slump = clean.regions.includes("pomodoro") && clean.roll < 10;
 
   return {
     name: clean.name.trim() || "Evening service",
-    region: clean.region,
+    region,
     cuisine: fit,
-    cuisineName: dish.name,
+    cuisineName: selectedDishes.map((item) => item.name).join(", ") || dish.name,
     menuTier: course.menuTier,
     districtTier: wealth.district,
     checkTotal: clean.roll,
-    slumpDays: clean.region === "pomodoro" && clean.roll < 10 ? 1 : 0,
+    slumpDays: slump ? 1 : 0,
     favoredIngredient: clean.week === "yes" || clean.week === "maybe",
-    ingredientName: ingredient?.name ?? "Food",
+    ingredientName: clean.ingredients
+      .map((id) => INGREDIENTS.find((item) => item.id === id)?.name)
+      .filter((name): name is string => Boolean(name))
+      .join(", "),
     wantedDish: clean.week === "yes",
     dishName: dish.name,
     venues,
     competitors: clean.rivals,
     system: "neutral",
     service: course.service,
-    friction: conflict.friction,
+    friction: conflict?.friction ?? "normal",
     capacity: clean.seats,
-    trafficWealth: wealth.value,
-    ...(conflict.id === "none" ? {} : { systemValue: conflict.system }),
-    ...(clean.reputation > 0 ? { reputationBonus: clean.reputation } : {}),
+    trafficWealth: wealthValue,
+    ...(realConflicts.length === 0 ? {} : { systemValue: roundTo(realConflicts.reduce((product, item) => product * item.system, 1), 4) }),
+    ...(realConflicts.length > 1
+      ? { frictionFactor: roundTo(realConflicts.reduce((product, item) => product * frictionOf(item.friction), 1), 4) }
+      : {}),
+    ...(mixedDishes || mixedRegions
+      ? { cuisineValue: roundTo(mean(cuisineSamples), 2) }
+      : {}),
+    ...(mixedDishes || mixedRegions || mixedWealth
+      ? {
+          priceValue: roundTo(mean(priceSamples.map((sample) => sample.value)), 2),
+          priceNote: priceNotes.length > 0 ? priceNotes.join(" ") : null,
+        }
+      : {}),
+    ...(mixedDishes
+      ? { serviceFactor: roundTo(mean(selectedDishes.map((item) => serviceOf(courseOf(item).service))), 2) }
+      : {}),
+    ...(mixedRegions
+      ? {
+          bEffOverride: Math.round(
+            mean(
+              clean.regions.map((id) => Math.round(REGIONS[id].base * (1 + Math.log(averagedWealth)))),
+            ),
+          ),
+          lambdaOverride: roundTo(mean(clean.regions.map((id) => REGIONS[id].lambda)), 4),
+          crMaxOverride: roundTo(mean(clean.regions.map((id) => REGIONS[id].crMax)), 4),
+        }
+      : {}),
+    ...(slump && region !== "pomodoro"
+      ? {
+          reputationValue: 0.2,
+          reputationNote: "Pomodoro slump. Reputation stays at 0.20 for 1 more day.",
+        }
+      : clean.reputation > 0
+        ? { reputationBonus: clean.reputation }
+        : {}),
     choices: { ...clean },
   };
 }
@@ -171,8 +281,8 @@ export function kitchenCount(choices: KitchenChoices) {
   return calculateHouse(toHouse(choices));
 }
 
-export function rollLine(roll: number, region: RegionId): string {
-  if (region === "pomodoro" && roll < 10) {
+export function rollLine(roll: number, regions: readonly RegionId[]): string {
+  if (regions.includes("pomodoro") && roll < 10) {
     return `A roll of ${roll} is a bad plate. Pomodoro holds that against the kitchen.`;
   }
   if (roll < 10) return `A roll of ${roll} is a rough service.`;

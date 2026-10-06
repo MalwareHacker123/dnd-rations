@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { Download, Save } from "lucide-react";
+import { ChevronDown, Download, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { REGIONS, REGION_ORDER, type RegionId } from "@/lib/customers";
 import { formatCount, formatPercent } from "@/lib/format";
@@ -20,7 +21,7 @@ import {
   type WeekAnswer,
 } from "@/lib/kitchen";
 import { getKitchenSnapshot, getServerKitchenSnapshot, setKitchenSnapshot, subscribeKitchen } from "@/lib/kitchen-store";
-import { DISHES, INGREDIENTS, dishesFor } from "@/lib/pantry";
+import { DISHES, INGREDIENTS, dishesForIngredients } from "@/lib/pantry";
 import { getSaveSnapshot, getServerSaveSnapshot, serializeSheet, setSaveSnapshot, sheetFilename, subscribeSaves, upsertSave } from "@/lib/saves";
 import { getServerTripSnapshot, getTripSnapshot, setTripSnapshot, subscribeTrip } from "@/lib/storage";
 
@@ -44,11 +45,65 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className="block space-y-1.5">
+    <div className="block space-y-1.5">
       <span className="text-sm font-medium">{label}</span>
       {children}
       <span className="block text-xs leading-5 text-muted-foreground">{hint}</span>
-    </label>
+    </div>
+  );
+}
+
+function choiceSummary(names: string[]): string {
+  if (names.length === 0) return "Choose at least one";
+  if (names.length <= 2) return names.join(", ");
+  return `${names[0]}, ${names[1]} +${names.length - 2}`;
+}
+
+function phrase(items: string[]): string {
+  const shown = items.length > 4 ? [...items.slice(0, 3), `${items.length - 3} more`] : items;
+  if (shown.length <= 1) return shown[0] ?? "";
+  if (shown.length === 2) return `${shown[0]} and ${shown[1]}`;
+  return `${shown.slice(0, -1).join(", ")}, and ${shown[shown.length - 1]}`;
+}
+
+function MultiPick<T extends string>({
+  label,
+  options,
+  selected,
+  onToggle,
+}: {
+  label: string;
+  options: { id: T; label: string; detail?: string }[];
+  selected: readonly T[];
+  onToggle: (id: T, on: boolean) => void;
+}) {
+  const names = options.filter((option) => selected.includes(option.id)).map((option) => option.label);
+  return (
+    <details className="group relative">
+      <summary
+        aria-label={label}
+        className={`${selectClass} flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden`}
+      >
+        <span className="truncate text-left">{choiceSummary(names)}</span>
+        <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
+      </summary>
+      <div className="absolute z-30 mt-1 max-h-72 w-full overflow-auto rounded-xl border border-input bg-card p-1 shadow-lg">
+        {options.map((option) => (
+          <label key={option.id} className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg px-2 py-2 hover:bg-muted">
+            <Checkbox
+              className="mt-0.5"
+              aria-label={option.label}
+              checked={selected.includes(option.id)}
+              onCheckedChange={(value) => onToggle(option.id, value === true)}
+            />
+            <span className="min-w-0">
+              <span className="block text-sm">{option.label}</span>
+              {option.detail ? <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">{option.detail}</span> : null}
+            </span>
+          </label>
+        ))}
+      </div>
+    </details>
   );
 }
 
@@ -57,19 +112,72 @@ export function KitchenPage() {
   const trip = useSyncExternalStore(subscribeTrip, getTripSnapshot, getServerTripSnapshot);
   const saves = useSyncExternalStore(subscribeSaves, getSaveSnapshot, getServerSaveSnapshot);
   const math = useMemo(() => kitchenCount(choices), [choices]);
-  const dishes = dishesFor(choices.ingredient);
-  const dish = DISHES.find((item) => item.id === choices.dish) ?? dishes[0];
-  const ingredient = INGREDIENTS.find((item) => item.id === choices.ingredient);
+  const dishes = dishesForIngredients(choices.ingredients);
   const [draftName, setDraftName] = useState("");
   const [notice, setNotice] = useState("");
+  const dishNames = choices.dishes
+    .map((id) => DISHES.find((item) => item.id === id)?.name)
+    .filter((name): name is string => Boolean(name));
+  const ingredientNames = choices.ingredients
+    .map((id) => INGREDIENTS.find((item) => item.id === id)?.name.toLowerCase())
+    .filter((name): name is string => Boolean(name));
+  const regionNames = choices.regions.map((id) => REGIONS[id].name);
 
   function patch(partial: Partial<KitchenChoices>) {
-    const next = { ...choices, ...partial };
-    if (partial.ingredient && partial.ingredient !== choices.ingredient) {
-      const menu = dishesFor(partial.ingredient);
-      if (!menu.some((item) => item.id === next.dish)) next.dish = menu[0].id;
+    setKitchenSnapshot({ ...choices, ...partial });
+  }
+
+  function toggleRequired<T extends string>(current: readonly T[], id: T, on: boolean): T[] | null {
+    if (on) return current.includes(id) ? null : [...current, id];
+    if (current.length <= 1) return null;
+    return current.filter((item) => item !== id);
+  }
+
+  function onIngredients(id: string, on: boolean) {
+    const ingredients = toggleRequired(choices.ingredients, id, on);
+    if (!ingredients) return;
+    const allowed = new Set(ingredients);
+    let nextDishes = choices.dishes.filter((dishId) => {
+      const dish = DISHES.find((item) => item.id === dishId);
+      return dish ? allowed.has(dish.ingredient) : false;
+    });
+    if (nextDishes.length === 0) nextDishes = [dishesForIngredients(ingredients)[0].id];
+    setKitchenSnapshot({ ...choices, ingredients, dishes: nextDishes });
+  }
+
+  function onDishes(id: string, on: boolean) {
+    const nextDishes = toggleRequired(choices.dishes, id, on);
+    if (!nextDishes) return;
+    setKitchenSnapshot({ ...choices, dishes: nextDishes });
+  }
+
+  function onRegions(id: RegionId, on: boolean) {
+    const regions = toggleRequired(choices.regions, id, on);
+    if (!regions) return;
+    setKitchenSnapshot({ ...choices, regions });
+  }
+
+  function onWealth(id: WealthId, on: boolean) {
+    const wealths = toggleRequired(choices.wealths, id, on);
+    if (!wealths) return;
+    setKitchenSnapshot({ ...choices, wealths });
+  }
+
+  function onConflict(id: ConflictId, on: boolean) {
+    if (id === "none") {
+      if (on) setKitchenSnapshot({ ...choices, conflicts: ["none"] });
+      return;
     }
-    setKitchenSnapshot(next);
+    if (on) {
+      setKitchenSnapshot({
+        ...choices,
+        conflicts: [...choices.conflicts.filter((item) => item !== "none" && item !== id), id],
+      });
+      return;
+    }
+    const conflicts = choices.conflicts.filter((item) => item !== id);
+    if (conflicts.length === 0) return;
+    setKitchenSnapshot({ ...choices, conflicts });
   }
 
   function remember(name: string) {
@@ -126,55 +234,37 @@ export function KitchenPage() {
         <p className="text-xs font-medium tracking-[0.18em] text-primary uppercase">Service tonight</p>
         <h1 className="mt-2 font-heading text-4xl font-semibold tracking-tight sm:text-5xl">The Kitchen</h1>
         <p className="mt-3 max-w-xl text-base leading-7 text-muted-foreground">
-          Pick the food, the street, and the roll. The count tells you who sits down.
+          Open a box and tick every choice that fits the night. The count tells you who sits down.
         </p>
       </header>
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <form className="space-y-4 rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5" onSubmit={(event) => event.preventDefault()}>
-          <Field label="Ingredient" hint="What is in the pot. The dish list follows this.">
-            <select
-              className={selectClass}
-              aria-label="Ingredient"
-              value={choices.ingredient}
-              onChange={(event) => patch({ ingredient: event.target.value })}
-            >
-              {INGREDIENTS.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
+          <Field label="Ingredients" hint="Tick everything in the pot. The dish list follows these.">
+            <MultiPick
+              label="Ingredients"
+              options={INGREDIENTS.map((item) => ({ id: item.id, label: item.name }))}
+              selected={choices.ingredients}
+              onToggle={onIngredients}
+            />
           </Field>
 
-          <Field label="Dish" hint="Only plates that use this ingredient.">
-            <select
-              className={selectClass}
-              aria-label="Dish"
-              value={choices.dish}
-              onChange={(event) => patch({ dish: event.target.value })}
-            >
-              {dishes.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
+          <Field label="Dishes" hint="Tick every plate you are serving. Only dishes for the ingredients above are listed.">
+            <MultiPick
+              label="Dishes"
+              options={dishes.map((item) => ({ id: item.id, label: item.name }))}
+              selected={choices.dishes}
+              onToggle={onDishes}
+            />
           </Field>
 
-          <Field label="Region" hint="The crowd outside the door.">
-            <select
-              className={selectClass}
-              aria-label="Region"
-              value={choices.region}
-              onChange={(event) => patch({ region: event.target.value as RegionId })}
-            >
-              {REGION_ORDER.map((id) => (
-                <option key={id} value={id}>
-                  {REGIONS[id].name}
-                </option>
-              ))}
-            </select>
+          <Field label="Regions" hint="Tick every crowd this kitchen is feeding.">
+            <MultiPick
+              label="Regions"
+              options={REGION_ORDER.map((id) => ({ id, label: REGIONS[id].name }))}
+              selected={choices.regions}
+              onToggle={onRegions}
+            />
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -204,34 +294,22 @@ export function KitchenPage() {
             </Field>
           </div>
 
-          <Field label="Customer wealth" hint="From a poor street to a rich one.">
-            <select
-              className={selectClass}
-              aria-label="Customer wealth"
-              value={choices.wealth}
-              onChange={(event) => patch({ wealth: event.target.value as WealthId })}
-            >
-              {WEALTH.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
+          <Field label="Customer wealth" hint="Tick every kind of purse on the street, from poor to rich.">
+            <MultiPick
+              label="Customer wealth"
+              options={WEALTH.map((item) => ({ id: item.id, label: item.label, detail: item.detail }))}
+              selected={choices.wealths}
+              onToggle={onWealth}
+            />
           </Field>
 
-          <Field label="Conflict" hint="Optional. Leave this on nothing if the city is quiet.">
-            <select
-              className={selectClass}
-              aria-label="Conflict"
-              value={choices.conflict}
-              onChange={(event) => patch({ conflict: event.target.value as ConflictId })}
-            >
-              {CONFLICTS.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
+          <Field label="Conflicts" hint="Optional. Nothing going on clears the other troubles.">
+            <MultiPick
+              label="Conflicts"
+              options={CONFLICTS.map((item) => ({ id: item.id, label: item.label, detail: item.detail }))}
+              selected={choices.conflicts}
+              onToggle={onConflict}
+            />
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -332,9 +410,9 @@ export function KitchenPage() {
                 <p className="text-sm text-muted-foreground">paying customers</p>
               </div>
               <p className="text-sm leading-6">
-                {dish.name} made with {ingredient?.name.toLowerCase()} in {REGIONS[choices.region].name}.
+                {phrase(dishNames)} made with {phrase(ingredientNames)} in {phrase(regionNames)}.
               </p>
-              <p className="text-sm leading-6">{rollLine(choices.roll, choices.region)}</p>
+              <p className="text-sm leading-6">{rollLine(choices.roll, choices.regions)}</p>
               <dl className="space-y-2 text-sm">
                 <Row label="Interested" value={formatCount(math.interest)} testId="interested" />
                 <Row label="Come to the door" value={formatCount(math.attracted)} testId="attracted" />
